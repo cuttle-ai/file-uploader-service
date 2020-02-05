@@ -7,6 +7,8 @@ package file
 import (
 	"strconv"
 	"time"
+
+	"github.com/cuttle-ai/file-uploader-service/config"
 )
 
 /*
@@ -40,7 +42,7 @@ func GenerateName(in chan NameGenerate) {
 	index := int64(0)
 	for {
 		req := <-in
-		req.Generated = req.Name + Separator + time.Now().String() + "_" + strconv.FormatInt(index, 10)
+		req.Generated = req.Name + config.Separator + time.Now().String() + "_" + strconv.FormatInt(index, 10)
 		index++
 		req.Out <- req
 	}

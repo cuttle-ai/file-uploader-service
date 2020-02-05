@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-package routes
+package datasets
 
 /*
  * This file contains the file upload api
@@ -18,6 +18,7 @@ import (
 
 	"github.com/cuttle-ai/file-uploader-service/config"
 	libfile "github.com/cuttle-ai/file-uploader-service/file"
+	"github.com/cuttle-ai/file-uploader-service/routes"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
 )
 
@@ -31,11 +32,11 @@ func Upload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	 * we will create the new directory location where the uploaded file has to be moved
 	 * Will create the new file name
 	 * Then will move the file into that location
-	 * Then will start to process the file
+	 * Then will start to process the file and store it
 	 */
 
 	//getting the app context
-	appCtx := ctx.Value(AppContextKey).(*config.AppContext)
+	appCtx := ctx.Value(routes.AppContextKey).(*config.AppContext)
 	appCtx.Log.Info("Got a request to upload a file by", appCtx.Session.User.Email)
 
 	//parsing the multipart form
@@ -89,15 +90,30 @@ func Upload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	//we will start processing the file
-	go libfile.ProcessFile(newfile)
+	fT, err := libfile.ProcessFile(newfile, handler.Filename)
+	if err != nil {
+		//error while identifying the file
+		appCtx.Log.Error("error while identifying the file type", newfile, err.Error())
+		response.WriteError(w, response.Error{Err: "Unidentified file format"}, http.StatusBadRequest)
+		return
+	}
+	//and store it
+	fR, err := fT.Store(appCtx)
+	if err != nil {
+		//error whilen storing the record
+		appCtx.Log.Error("error while storing the file type", newfile, err.Error())
+		response.WriteError(w, response.Error{Err: "Unidentified file format"}, http.StatusBadRequest)
+		return
+	}
+	fR.Location = ""
 
-	appCtx.Log.Info("Successfully moved the uploaded file", handler.Filename, "to", newfile)
-	response.Write(w, "Successfully uploaded the file")
+	appCtx.Log.Info("Successfully moved the uploaded file", handler.Filename, "to", newfile, "and stored to db with id", fR.ID)
+	response.Write(w, response.Message{Message: "Successfully uploaded the file", Data: fR})
 }
 
 func init() {
-	AddRoutes(
-		Route{
+	routes.AddRoutes(
+		routes.Route{
 			Version:     "v1",
 			Pattern:     "/upload",
 			HandlerFunc: Upload,

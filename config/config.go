@@ -8,16 +8,19 @@ package config
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	libfile "github.com/cuttle-ai/file-uploader-service/file"
 	"github.com/cuttle-ai/file-uploader-service/version"
 
 	"github.com/cuttle-ai/configs/config"
 )
+
+//Separator is the file separator used by the underlying os
+var Separator = string([]byte{filepath.Separator})
 
 var (
 	//Port in which the application is being served
@@ -29,11 +32,11 @@ var (
 	//RPCIntPort is the rpc port converted into integer
 	RPCIntPort = 8082
 	//ResponseTimeout of the api to respond in milliseconds
-	ResponseTimeout = time.Duration(100 * time.Millisecond)
+	ResponseTimeout = time.Duration(12000 * time.Millisecond)
 	//RequestRTimeout of the api request body read timeout in milliseconds
-	RequestRTimeout = time.Duration(20 * time.Millisecond)
+	RequestRTimeout = time.Duration(10000 * time.Millisecond)
 	//ResponseWTimeout of the api response write timeout in milliseconds
-	ResponseWTimeout = time.Duration(20 * time.Millisecond)
+	ResponseWTimeout = time.Duration(1000 * time.Millisecond)
 	//MaxRequests is the maximum no. of requests catered at a given point of time
 	MaxRequests = 1000
 	//RequestCleanUpCheck is the time after which request cleanup check has to happen
@@ -45,7 +48,7 @@ var (
 	//ServiceDomain is the url on which the service will be available across the platform
 	ServiceDomain = "127.0.0.1"
 	//FileDumpDirectory is the directory to dump the uploaded files
-	FileDumpDirectory = libfile.Separator + "cuttle.ai" + libfile.Separator + "uploaded-files" + libfile.Separator
+	FileDumpDirectory = Separator + "cuttle.ai" + Separator + "uploaded-files" + Separator
 )
 
 //SkipVault will skip the vault initialization if set true
