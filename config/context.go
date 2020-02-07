@@ -120,5 +120,6 @@ func (a *AppContext) ConnectToDB() error {
 	}
 	a.Db.AutoMigrate(&models.FileUpload{})
 	a.Db.AutoMigrate(&models.FileUploadError{})
+	a.Db.AutoMigrate(&models.Dataset{})
 	return err
 }

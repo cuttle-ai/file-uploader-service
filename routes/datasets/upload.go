@@ -18,6 +18,7 @@ import (
 
 	"github.com/cuttle-ai/file-uploader-service/config"
 	libfile "github.com/cuttle-ai/file-uploader-service/file"
+	"github.com/cuttle-ai/file-uploader-service/models"
 	"github.com/cuttle-ai/file-uploader-service/routes"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
 )
@@ -98,17 +99,19 @@ func Upload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	//and store it
-	fR, err := fT.Store(appCtx)
+	d, err := fT.Store(appCtx)
 	if err != nil {
 		//error whilen storing the record
 		appCtx.Log.Error("error while storing the file type", newfile, err.Error())
 		response.WriteError(w, response.Error{Err: "Unidentified file format"}, http.StatusBadRequest)
 		return
 	}
+	fR, _ := d.UploadedDataset.(*models.FileUpload)
 	fR.Location = ""
+	d.UploadedDataset = fR
 
-	appCtx.Log.Info("Successfully moved the uploaded file", handler.Filename, "to", newfile, "and stored to db with id", fR.ID)
-	response.Write(w, response.Message{Message: "Successfully uploaded the file", Data: fR})
+	appCtx.Log.Info("Successfully moved the uploaded file", handler.Filename, "to", newfile, "and stored to db with id", d.ID)
+	response.Write(w, response.Message{Message: "Successfully uploaded the file", Data: d})
 }
 
 func init() {

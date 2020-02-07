@@ -29,7 +29,7 @@ const (
 //File interface has to be implemented by the file formats supported the platform
 type File interface {
 	//Store stores the file info in the db so that it can be accessed later
-	Store(*config.AppContext) (*models.FileUpload, error)
+	Store(*config.AppContext) (*models.Dataset, error)
 	//Validate will validate the file and returns the errors occurred
 	Validate() []error
 	//Clean will try to clean the existing file and returns the list of errors occurred

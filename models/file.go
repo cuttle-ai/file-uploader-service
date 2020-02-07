@@ -14,6 +14,11 @@ const (
 	FileUploadStatusUploaded = "UPLOADED"
 )
 
+const (
+	//FileUploadTypeCSV indicates that the uploaded file's type is csv
+	FileUploadTypeCSV = "CSV"
+)
+
 //FileUpload represents the file uploads in the system
 type FileUpload struct {
 	gorm.Model
@@ -23,6 +28,8 @@ type FileUpload struct {
 	UserID uint
 	//Location is the location where the file is stored
 	Location string
+	//Type is the type of file uploaded
+	Type string
 	//Status is the status of the uploaded file
 	Status string
 }
@@ -36,8 +43,8 @@ type FileUploadError struct {
 	Error string
 }
 
-//UploadedDataset has the info about an uploaded datatset and its errors
-type UploadedDataset struct {
+//FileDataset has the info about an uploaded datatset and its errors
+type FileDataset struct {
 	//Info has the info about the dataset
 	Info FileUpload
 	//Errors has the list errors of the dataset upload
