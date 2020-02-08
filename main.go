@@ -14,8 +14,9 @@ import (
 	"github.com/cuttle-ai/file-uploader-service/config"
 	"github.com/cuttle-ai/file-uploader-service/log"
 	"github.com/cuttle-ai/file-uploader-service/routes"
- 
+
 	_ "github.com/cuttle-ai/file-uploader-service/routes/datasets"
+	_ "github.com/cuttle-ai/file-uploader-service/routes/file"
 )
 
 /*

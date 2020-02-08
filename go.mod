@@ -5,6 +5,7 @@ go 1.13
 replace github.com/cuttle-ai/auth-service => ../auth-service/
 
 require (
+	github.com/Clever/csvlint v0.2.0
 	github.com/cuttle-ai/auth-service v0.0.0-00010101000000-000000000000
 	github.com/cuttle-ai/configs v0.0.0-20190824112953-7860fdfd0dae
 	github.com/google/uuid v1.1.1

@@ -6,8 +6,12 @@
 package csv
 
 import (
+	"os"
+
+	"github.com/Clever/csvlint"
 	"github.com/cuttle-ai/file-uploader-service/config"
 	"github.com/cuttle-ai/file-uploader-service/models"
+	"github.com/cuttle-ai/file-uploader-service/models/db"
 )
 
 //CSV handles the fiels of csv type
@@ -16,6 +20,13 @@ type CSV struct {
 	Filename string
 	//Name is the dataset name
 	Name string
+	//Resource holds the db instance of the underlying file
+	Resource db.FileUpload
+}
+
+//ID returns the underlying file's id in db
+func (c CSV) ID() uint {
+	return c.Resource.ID
 }
 
 //Store stores the csv info to database
@@ -61,8 +72,32 @@ func (c *CSV) Store(a *config.AppContext) (*models.Dataset, error) {
 }
 
 //Validate will validate the csv file and returns the errors existing while parsing the csv file
-func (c *CSV) Validate() []error {
-	return nil
+func (c *CSV) Validate() ([]error, error) {
+	/*
+	 * We will open the file
+	 * Then we will validate the same
+	 * return the errors if any
+	 */
+	f, err := os.Open(c.Filename)
+	if err != nil {
+		c.Resource.Status = models.FileUploadStatusValidatingError
+		return nil, err
+	}
+	defer f.Close()
+	invalids, _, err := csvlint.Validate(f, rune(','), true)
+	if err != nil {
+		c.Resource.Status = models.FileUploadStatusValidatingError
+		return nil, err
+	}
+	c.Resource.Status = models.FileUploadStatusValidated
+	if len(invalids) == 0 {
+		return nil, nil
+	}
+	errorResults := []error{}
+	for _, v := range invalids {
+		errorResults = append(errorResults, v)
+	}
+	return errorResults, nil
 }
 
 //Clean will attemnpt to attempt to clean the file and reprt back the errors occurred while cleaning it
@@ -73,4 +108,16 @@ func (c *CSV) Clean() []error {
 //Upload will attempt to upload the file to the analytics engine and report any error occurred
 func (c *CSV) Upload() error {
 	return nil
+}
+
+//UpdateStatus updates the status of the file upload in db
+func (c *CSV) UpdateStatus(a *config.AppContext) error {
+	/*
+	 * Then we will create the file upload
+	 * Then we will create the dataset with resource id as the of the file
+	 */
+	//starting the transaction
+	return a.Db.Model(&c.Resource).Updates(map[string]interface{}{
+		"status": c.Resource.Status,
+	}).Error
 }

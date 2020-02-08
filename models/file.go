@@ -12,6 +12,10 @@ import (
 const (
 	//FileUploadStatusUploaded indicates that the file has been uploaded
 	FileUploadStatusUploaded = "UPLOADED"
+	//FileUploadStatusValidatingError indicates that the validation occurred due to some error
+	FileUploadStatusValidatingError = "VALIDATING_ERROR"
+	//FileUploadStatusValidated indicates that the validation process is completed. The errors will be available in the file upoload error records for the file
+	FileUploadStatusValidated = "VALIDATED"
 )
 
 const (

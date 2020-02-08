@@ -26,20 +26,6 @@ func GetDatasets(a *config.AppContext) ([]models.Dataset, error) {
 	return results, err
 }
 
-//GetFileUpload returns the info about a fileupload for the given id
-func GetFileUpload(a *config.AppContext, id uint, maskSensitiveInfo bool) (models.FileDataset, error) {
-	result := models.FileDataset{}
-	err := a.Db.Where("user_id = ? and id = ?", a.Session.User.ID, id).Find(&result.Info).Error
-	if err != nil {
-		return result, err
-	}
-	err = a.Db.Where("file_upload_id = ?", id).Find(&result.Errors).Error
-	if maskSensitiveInfo {
-		result.Info.Location = ""
-	}
-	return result, err
-}
-
 //Get returns the info about a dataset including the uploaded resource info in Uploaded dataset
 func (d *Dataset) Get(a *config.AppContext, maskSensitiveInfo bool) error {
 	/*
