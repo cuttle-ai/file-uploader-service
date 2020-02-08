@@ -33,6 +33,8 @@ type Route struct {
 	Pattern string
 	//HandlerFunc is the handler func of the route
 	HandlerFunc HandlerFunc
+	//ParseForm will do a form parse before invoking the handler
+	ParseForm bool
 }
 
 //AppContextKey is the key with which the application is saved in the request context
@@ -54,6 +56,7 @@ func (r Route) Register(s *http.ServeMux) {
 func (r Route) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	/*
 	 * Will get the context
+	 * Will parse the form if enabled
 	 * We will get the auth-access token from the header
 	 * Will sessiomn information about the logged in user
 	 * Will parse the form
@@ -65,6 +68,19 @@ func (r Route) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	 */
 	//getting the context
 	ctx := req.Context()
+
+	//parsing the form
+	if r.ParseForm {
+		err := req.ParseForm()
+		if err != nil {
+			//error while parsing the form
+			log.Error("Error while parsing the request form", err)
+			response.WriteError(res, response.Error{Err: "Couldn't parse the request form"}, http.StatusUnprocessableEntity)
+			_, cancel := context.WithCancel(ctx)
+			cancel()
+			return
+		}
+	}
 
 	//getting the auth token from the header
 	cookie, cErr := req.Cookie(authConfig.AuthHeaderKey)

@@ -7,6 +7,7 @@ package datasets
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -60,9 +61,11 @@ func GetDataSet(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, response.Error{Err: "Invalid Params " + idStr + " as id of the dataset"}, http.StatusBadRequest)
 		return
 	}
+	d := &db.Dataset{}
+	d.ID = uint(id)
 
 	//getting the dataset info
-	dataset, err := db.GetDataset(appCtx, id)
+	err = d.Get(appCtx, true)
 	if err != nil {
 		//error while getting the info
 		appCtx.Log.Error("error while getting the info for datatset with id", id, err.Error())
@@ -70,8 +73,53 @@ func GetDataSet(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	appCtx.Log.Info("Successfully fetched the dataser info of", id)
-	response.Write(w, response.Message{Message: "Successfully fetched the info", Data: dataset})
+	appCtx.Log.Info("Successfully fetched the dataset info of", id)
+	response.Write(w, response.Message{Message: "Successfully fetched the info", Data: d})
+}
+
+//UpdateDataset will update a dataset for a given user
+func UpdateDataset(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	/*
+	 * We will get the app context
+	 * Then we will try to parse the request param dataset
+	 * We will do a sanity check
+	 * Then we will update the dataset in db
+	 */
+
+	//getting the app context
+	appCtx := ctx.Value(routes.AppContextKey).(*config.AppContext)
+	appCtx.Log.Info("Got a request to update the dataset info by", appCtx.Session.User.ID)
+
+	//parse the request param dataset
+	d := &db.Dataset{}
+	err := json.NewDecoder(r.Body).Decode(d)
+	if err != nil {
+		//bad request
+		appCtx.Log.Error("error while parsing the dataset", err.Error())
+		response.WriteError(w, response.Error{Err: "Invalid Params " + err.Error()}, http.StatusBadRequest)
+		return
+	}
+
+	//doing a sanity check
+	err = d.UpdateSanityCheck(appCtx)
+	if err != nil {
+		//bad request
+		appCtx.Log.Error("sanity check failed for dataset update", d.ID, err.Error())
+		response.WriteError(w, response.Error{Err: "Invalid Params " + err.Error()}, http.StatusBadRequest)
+		return
+	}
+
+	//getting the dataset info
+	err = d.Update(appCtx)
+	if err != nil {
+		//error while getting the info
+		appCtx.Log.Error("error while updating datatset with id", d.ID, err.Error())
+		response.WriteError(w, response.Error{Err: "Couldn't update the info"}, http.StatusInternalServerError)
+		return
+	}
+
+	appCtx.Log.Info("Successfully updated the dataset info of", d.ID)
+	response.Write(w, response.Message{Message: "Successfully updated the info", Data: d})
 }
 
 func init() {
@@ -85,6 +133,11 @@ func init() {
 			Version:     "v1",
 			Pattern:     "/datasets/get",
 			HandlerFunc: GetDataSet,
+		},
+		routes.Route{
+			Version:     "v1",
+			Pattern:     "/dataset/update",
+			HandlerFunc: UpdateDataset,
 		},
 	)
 }
