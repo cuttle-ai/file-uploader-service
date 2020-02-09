@@ -113,10 +113,8 @@ func (c *CSV) Upload() error {
 //UpdateStatus updates the status of the file upload in db
 func (c *CSV) UpdateStatus(a *config.AppContext) error {
 	/*
-	 * Then we will create the file upload
-	 * Then we will create the dataset with resource id as the of the file
+	 * We will update the status
 	 */
-	//starting the transaction
 	return a.Db.Model(&c.Resource).Updates(map[string]interface{}{
 		"status": c.Resource.Status,
 	}).Error

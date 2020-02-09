@@ -76,7 +76,7 @@ func Upload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	newfile := newpath + string([]rune{filepath.Separator}) + handler.Filename
 
 	//move the file
-	f, err := os.OpenFile(newfile, os.O_WRONLY|os.O_CREATE, 0666)
+	f, err := os.Create(newfile)
 	if err != nil {
 		appCtx.Log.Error("error while moving the file to the processing location", handler.Filename, err.Error())
 		response.WriteError(w, response.Error{Err: "Error while moving the uploaded file to a server location"}, http.StatusInternalServerError)

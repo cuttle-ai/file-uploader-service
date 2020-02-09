@@ -7,7 +7,9 @@ package file
 
 import (
 	"context"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/cuttle-ai/file-uploader-service/config"
@@ -125,12 +127,94 @@ func Validate(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	response.Write(w, response.Message{Message: "Successfully started validating"})
 }
 
+//UpdateUpload updates the uploaded file with a new upload
+func UpdateUpload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	/*
+	 * We will get the app context
+	 * We will try to parse the id of the file
+	 * We will get the file model from the database
+	 * Then we will get the file payload
+	 * Then we will save the file in the same location that of the existing file, thus by replacing the original file
+	 * Then delete all the existing errors and update the existing file validation errors
+	 */
+	//getting the app context
+	appCtx := ctx.Value(routes.AppContextKey).(*config.AppContext)
+	appCtx.Log.Info("Got a request to re-upload the dataset", appCtx.Session.User.ID)
+
+	//parse the request param id
+	idStr := r.URL.Query().Get("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		//bad request
+		appCtx.Log.Error("error while parsing the uploaded file id", err.Error(), idStr)
+		response.WriteError(w, response.Error{Err: "Invalid Params " + idStr + " as id of the uploaded file"}, http.StatusBadRequest)
+		return
+	}
+
+	//we will get the db record for the file
+	f := &db.FileUpload{}
+	f.ID = uint(id)
+	err = f.Get(appCtx)
+	if err != nil {
+		//error while getting the info
+		appCtx.Log.Error("error while getting the info for file uploaded with id", id, err.Error())
+		response.WriteError(w, response.Error{Err: "Couldn't fetch the info of the file upload"}, http.StatusInternalServerError)
+		return
+	}
+
+	//parsing the multipart form
+	//maximum we can parse 1Gb file size
+	r.ParseMultipartForm(10 << 30)
+
+	//we are getting the file
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		appCtx.Log.Error("error retrieving the File", err)
+		response.WriteError(w, response.Error{Err: "Error while reading the uploaded file"}, http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	//move the file
+	nF, err := os.Create(f.Location)
+	if err != nil {
+		appCtx.Log.Error("error while moving the file to the processing location", f.Location, err.Error())
+		response.WriteError(w, response.Error{Err: "Error while moving the uploaded file to a server location"}, http.StatusInternalServerError)
+		return
+	}
+	defer nF.Close()
+	_, err = io.Copy(nF, file)
+	if err != nil {
+		appCtx.Log.Error("error while moving the file to the processing location", f.Location, err.Error())
+		response.WriteError(w, response.Error{Err: "Error while moving the uploaded file to a server location"}, http.StatusInternalServerError)
+		return
+	}
+
+	//delete the existing errors and update the status of upload as uploaded
+	err = f.DeleteErrorsAndUpdateStatus(appCtx)
+	if err != nil {
+		//error while deleting the existing errors and updatingt the status
+		appCtx.Log.Error("error deleting the file upload errors and updating the status for", f.ID, err.Error())
+		response.WriteError(w, response.Error{Err: "Error while updating the upload status"}, http.StatusInternalServerError)
+		return
+	}
+
+	appCtx.Log.Info("Sucessfully updated the file for", f.ID)
+	f.Location = ""
+	response.Write(w, response.Message{Message: "Successfully uploaded the file", Data: f})
+}
+
 func init() {
 	routes.AddRoutes(
 		routes.Route{
 			Version:     "v1",
 			Pattern:     "/file/validate",
 			HandlerFunc: Validate,
+		},
+		routes.Route{
+			Version:     "v1",
+			Pattern:     "/file/upload",
+			HandlerFunc: UpdateUpload,
 		},
 	)
 }

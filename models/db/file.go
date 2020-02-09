@@ -37,6 +37,47 @@ func (f FileUpload) DeleteErrors(a *config.AppContext) error {
 	return a.Db.Where("file_upload_id = ?", f.ID).Delete(&models.FileUploadError{}).Error
 }
 
+//DeleteErrorsAndUpdateStatus will delete the file upload errors and update the status as uploaded
+func (f *FileUpload) DeleteErrorsAndUpdateStatus(a *config.AppContext) error {
+	/*
+	 * We will start the transaction
+	 * We will then delete the file upload errors
+	 * Then we will update the status of the file upload as status
+	 */
+
+	//starting the transaction
+	tx := a.Db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if err := tx.Error; err != nil {
+		//error while beginning the transaction
+		return err
+	}
+
+	//deleting the errors
+	if err := tx.Where("file_upload_id = ?", f.ID).Delete(&models.FileUploadError{}).Error; err != nil {
+		//error while creating the upload
+		tx.Rollback()
+		a.Log.Error("error while deleting the file upload errors for", f.ID)
+		return err
+	}
+
+	//updating the status
+	status := map[string]interface{}{
+		"status": models.FileUploadStatusUploaded,
+	}
+	if err := tx.Model(f).Updates(status).Error; err != nil {
+		//error while creating the upload
+		tx.Rollback()
+		a.Log.Error("error while updating the file upload status to updating for", f.ID)
+		return err
+	}
+	return tx.Commit().Error
+}
+
 //CreateErrors will create the error record for the given file
 func CreateErrors(a *config.AppContext, errs []models.FileUploadError) error {
 	/*
