@@ -12,6 +12,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 
 	authConfig "github.com/cuttle-ai/auth-service/config"
+	brainModels "github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/models"
 	"github.com/jinzhu/gorm"
 )
@@ -120,6 +121,6 @@ func (a *AppContext) ConnectToDB() error {
 	}
 	a.Db.AutoMigrate(&models.FileUpload{})
 	a.Db.AutoMigrate(&models.FileUploadError{})
-	a.Db.AutoMigrate(&models.Dataset{})
+	a.Db.AutoMigrate(&brainModels.Dataset{})
 	return err
 }

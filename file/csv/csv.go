@@ -6,12 +6,21 @@
 package csv
 
 import (
+	"encoding/csv"
+	"errors"
+	"io"
 	"os"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Clever/csvlint"
+	brainModels "github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/config"
 	"github.com/cuttle-ai/file-uploader-service/models"
 	"github.com/cuttle-ai/file-uploader-service/models/db"
+	"github.com/cuttle-ai/octopus/interpreter"
+	"github.com/google/uuid"
 )
 
 //CSV handles the fiels of csv type
@@ -22,6 +31,8 @@ type CSV struct {
 	Name string
 	//Resource holds the db instance of the underlying file
 	Resource db.FileUpload
+	//Table is the underlying octopus table node
+	Table *interpreter.TableNode
 }
 
 //ID returns the underlying file's id in db
@@ -30,7 +41,7 @@ func (c CSV) ID() uint {
 }
 
 //Store stores the csv info to database
-func (c *CSV) Store(a *config.AppContext) (*models.Dataset, error) {
+func (c *CSV) Store(a *config.AppContext) (*brainModels.Dataset, error) {
 	/*
 	 * We will db transaction we have to save the file upload and the dataset info
 	 * Then we will create the file upload
@@ -58,7 +69,7 @@ func (c *CSV) Store(a *config.AppContext) (*models.Dataset, error) {
 	}
 
 	//saving the dataset record
-	dataset := &models.Dataset{Name: c.Name, UserID: fileRecord.UserID, ResourceID: fileRecord.ID, Source: models.DatasetSourceFile}
+	dataset := &brainModels.Dataset{Name: c.Name, UserID: fileRecord.UserID, ResourceID: fileRecord.ID, Source: brainModels.DatasetSourceFile}
 	if err := tx.Create(dataset).Error; err != nil {
 		//error while creating the dataset
 		tx.Rollback()
@@ -100,9 +111,132 @@ func (c *CSV) Validate() ([]error, error) {
 	return errorResults, nil
 }
 
-//Clean will attemnpt to attempt to clean the file and reprt back the errors occurred while cleaning it
-func (c *CSV) Clean() []error {
-	return nil
+//IdentifyColumns will identify the columns in the file and store them in the database
+func (c *CSV) IdentifyColumns(columns []interpreter.ColumnNode) ([]interpreter.ColumnNode, error) {
+	/*
+	 * We will open the file
+	 * Will read the column names
+	 * We will read the csv file line by line
+	 * Then we will try to predict the columns
+	 */
+
+	//opening the file
+	f, err := os.Open(c.Filename)
+	if err != nil {
+		//error while opening the file
+		return nil, err
+	}
+
+	//reading the column names in the file
+	r := csv.NewReader(f)
+	cols, err := r.Read()
+	//even if the error was EOF or aything else, we will report it as error since
+	//we couldn't read the cols
+	if err != nil && err != io.EOF {
+		return nil, err
+	}
+	if err != nil && err == io.EOF {
+		return nil, errors.New("EOF reached before able to read the columns in the file")
+	}
+	//storing the columns in the columns result
+
+	if len(columns) == 0 {
+		columns = []interpreter.ColumnNode{}
+		for _, col := range cols {
+			columns = append(columns, interpreter.ColumnNode{
+				UID:  uuid.New().String(),
+				Name: col,
+				//Will keep the default data type as string
+				DataType: interpreter.DataTypeString,
+			})
+		}
+	}
+
+	//predicting the columns
+	//this is a classical bruteforce approach of going through the entire dataset
+	//and making sure the data type is accurate
+	//have to improve the below piece of code
+	for {
+		// Read each record from csv
+		record, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		for i, v := range record {
+			columns[i].DataType = predictColumn(v, columns[i].DataType)
+		}
+	}
+	return columns, nil
+}
+
+func predictColumn(value string, existingType string) string {
+	/*
+	 * If the value is empty we will return the existing data type itself
+	 * We chek the the value is of same data type for all data types except string type
+	 * If the existing data type is string, we will have check whether it can be
+	 * float
+	 * integer
+	 * date
+	 */
+	//returning existing type if the value is empty
+	if len(value) == 0 {
+		return existingType
+	}
+
+	//checking for date
+	if existingType == interpreter.DataTypeDate {
+		_, err := time.Parse("2006-Jan-02", value)
+		if err == nil {
+			return interpreter.DataTypeDate
+		}
+		return interpreter.DataTypeString
+	}
+
+	//checking for float
+	if existingType == interpreter.DataTypeFloat {
+		tV := strings.TrimSpace(value)
+		_, err := strconv.ParseFloat(tV, 64)
+		if err == nil {
+			return interpreter.DataTypeFloat
+		}
+		return interpreter.DataTypeString
+	}
+
+	//checking for integer
+	if existingType == interpreter.DataTypeInt {
+		tV := strings.TrimSpace(value)
+		sV := strings.TrimSuffix(tV, ".")
+		_, err := strconv.ParseInt(sV, 10, 64)
+		if err == nil {
+			return interpreter.DataTypeInt
+		}
+		_, errF := strconv.ParseFloat(tV, 64)
+		if errF == nil {
+			return interpreter.DataTypeFloat
+		}
+		return interpreter.DataTypeString
+	}
+
+	//check for string
+	//we check every data type
+	_, err := time.Parse("2006-Jan-02", value)
+	if err == nil {
+		return interpreter.DataTypeDate
+	}
+	tV := strings.TrimSpace(value)
+	_, errF := strconv.ParseFloat(tV, 64)
+	if errF == nil {
+		return interpreter.DataTypeFloat
+	}
+	sV := strings.TrimSuffix(tV, ".")
+	_, errI := strconv.ParseInt(sV, 10, 64)
+	if errI == nil {
+		return interpreter.DataTypeInt
+	}
+	return interpreter.DataTypeString
 }
 
 //Upload will attempt to upload the file to the analytics engine and report any error occurred

@@ -8,8 +8,10 @@ package db
 import (
 	"fmt"
 
+	"github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/config"
-	"github.com/cuttle-ai/file-uploader-service/models"
+	"github.com/cuttle-ai/octopus/interpreter"
+	"github.com/google/uuid"
 )
 
 const (
@@ -25,6 +27,9 @@ func GetDatasets(a *config.AppContext) ([]models.Dataset, error) {
 	err := a.Db.Where("user_id = ?", a.Session.User.ID).Find(&results).Error
 	return results, err
 }
+
+//Dataset is the type alias for models.Dataset
+type Dataset models.Dataset
 
 //Get returns the info about a dataset including the uploaded resource info in Uploaded dataset
 func (d *Dataset) Get(a *config.AppContext, maskSensitiveInfo bool) error {
@@ -55,8 +60,56 @@ func (d *Dataset) Get(a *config.AppContext, maskSensitiveInfo bool) error {
 	return fmt.Errorf("couldn't resolve the dataset source for the dataset %s %d", d.Source, d.ID)
 }
 
-//Dataset is the type alias for models.Dataset
-type Dataset models.Dataset
+//GetColumns get the columns corresponding to a dataset
+func (d Dataset) GetColumns(a *config.AppContext) ([]models.Node, error) {
+	result := []models.Node{}
+	err := a.Db.Where("dataset_id = ? and type = ?", d.ID, interpreter.Column).Find(&result).Error
+	return result, err
+}
+
+//UpdateColumns updates the columns in the database. It will create the columns if not existing
+func (d *Dataset) UpdateColumns(a *config.AppContext, cols []models.Node) ([]models.Node, error) {
+	/*
+	 * We will use the db transactions to start update
+	 * If id exists we will update
+	 * else we will create the model
+	 */
+	//starting the transaction
+	tx := a.Db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if err := tx.Error; err != nil {
+		return nil, err
+	}
+
+	//will iterate through the cols for create/update
+	for i := 0; i < len(cols); i++ {
+		//if id doesn't exists we will create the node
+		if cols[i].ID == 0 {
+			cols[i].UID = uuid.New()
+			err := tx.Create(&cols[i]).Error
+			if err != nil {
+				a.Log.Error("error while creating the column node for", cols[i].DatasetID, "at index", i)
+				tx.Rollback()
+				return nil, err
+			}
+			continue
+		}
+		//else we will update the node
+		for j := 0; j < len(cols[i].Metadata); j++ {
+			err := tx.Save(&(cols[i].Metadata[j])).Error
+			if err != nil {
+				a.Log.Error("error while updating metadata of the column node for", cols[i].ID, cols[i].Metadata[j].Prop, cols[i].Metadata[j].ID)
+				tx.Rollback()
+				return nil, err
+			}
+		}
+	}
+	return cols, tx.Commit().Error
+}
 
 //UpdateSanityCheck will check whether the dataset has correct values or not
 func (d Dataset) UpdateSanityCheck(a *config.AppContext) error {

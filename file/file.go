@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"strings"
 
+	brainModels "github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/config"
 	"github.com/cuttle-ai/file-uploader-service/file/csv"
 	"github.com/cuttle-ai/file-uploader-service/models"
 	"github.com/cuttle-ai/file-uploader-service/models/db"
+	"github.com/cuttle-ai/octopus/interpreter"
 )
 
 //Type denotes the type of the file
@@ -31,11 +33,12 @@ const (
 //File interface has to be implemented by the file formats supported the platform
 type File interface {
 	//Store stores the file info in the db so that it can be accessed later
-	Store(*config.AppContext) (*models.Dataset, error)
+	Store(*config.AppContext) (*brainModels.Dataset, error)
 	//Validate will validate the file and returns the errors occurred
 	Validate() ([]error, error)
-	//Clean will try to clean the existing file and returns the list of errors occurred
-	Clean() []error
+	//IdentifyColumns will try to identify the columns in the file. If no columns are passed as arguments, it will read from the file.
+	//Else it will validate the given columns with the ones in the data file and try to refine the data type in the columns
+	IdentifyColumns(columns []interpreter.ColumnNode) ([]interpreter.ColumnNode, error)
 	//Upload will upload the data inside the file to the platform analytics engine
 	Upload() error
 	//UpdateStatus updates the status of the file in db
