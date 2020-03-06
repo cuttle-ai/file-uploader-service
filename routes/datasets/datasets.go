@@ -15,6 +15,7 @@ import (
 	"github.com/cuttle-ai/file-uploader-service/models/db"
 	"github.com/cuttle-ai/file-uploader-service/routes"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
+	"github.com/cuttle-ai/octopus/interpreter"
 )
 
 //GetDatasets will return the list of datasets for a given user
@@ -73,8 +74,22 @@ func GetDataSet(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cols, err := d.GetColumns(appCtx)
+	if err != nil {
+		//error while getting the columns from the app dataset
+		appCtx.Log.Error("error while getting the columns of datatset with id", id, err.Error())
+		response.WriteError(w, response.Error{Err: "Couldn't fetch the info"}, http.StatusInternalServerError)
+		return
+	}
+	iCols := []interpreter.ColumnNode{}
+	for _, v := range cols {
+		iCols = append(iCols, v.ColumnNode())
+	}
 	appCtx.Log.Info("Successfully fetched the dataset info of", id)
-	response.Write(w, response.Message{Message: "Successfully fetched the info", Data: d})
+	response.Write(w, response.Message{Message: "Successfully fetched the info", Data: struct {
+		Dataset *db.Dataset
+		Columns []interpreter.ColumnNode
+	}{d, iCols}})
 }
 
 //UpdateDataset will update a dataset for a given user

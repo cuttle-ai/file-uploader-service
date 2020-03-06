@@ -63,7 +63,7 @@ func (d *Dataset) Get(a *config.AppContext, maskSensitiveInfo bool) error {
 //GetColumns get the columns corresponding to a dataset
 func (d Dataset) GetColumns(a *config.AppContext) ([]models.Node, error) {
 	result := []models.Node{}
-	err := a.Db.Where("dataset_id = ? and type = ?", d.ID, interpreter.Column).Find(&result).Error
+	err := a.Db.Set("gorm:auto_preload", true).Where("dataset_id = ? and type = ?", d.ID, interpreter.Column).Find(&result).Error
 	return result, err
 }
 
@@ -87,6 +87,7 @@ func (d *Dataset) UpdateColumns(a *config.AppContext, cols []models.Node) ([]mod
 
 	//will iterate through the cols for create/update
 	for i := 0; i < len(cols); i++ {
+		cols[i].DatasetID = d.ID
 		//if id doesn't exists we will create the node
 		if cols[i].ID == 0 {
 			cols[i].UID = uuid.New()
@@ -99,10 +100,10 @@ func (d *Dataset) UpdateColumns(a *config.AppContext, cols []models.Node) ([]mod
 			continue
 		}
 		//else we will update the node
-		for j := 0; j < len(cols[i].Metadata); j++ {
-			err := tx.Save(&(cols[i].Metadata[j])).Error
+		for j := 0; j < len(cols[i].NodeMetadatas); j++ {
+			err := tx.Save(&(cols[i].NodeMetadatas[j])).Error
 			if err != nil {
-				a.Log.Error("error while updating metadata of the column node for", cols[i].ID, cols[i].Metadata[j].Prop, cols[i].Metadata[j].ID)
+				a.Log.Error("error while updating metadata of the column node for", cols[i].ID, cols[i].NodeMetadatas[j].Prop, cols[i].NodeMetadatas[j].ID)
 				tx.Rollback()
 				return nil, err
 			}

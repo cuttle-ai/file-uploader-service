@@ -122,5 +122,7 @@ func (a *AppContext) ConnectToDB() error {
 	a.Db.AutoMigrate(&models.FileUpload{})
 	a.Db.AutoMigrate(&models.FileUploadError{})
 	a.Db.AutoMigrate(&brainModels.Dataset{})
+	a.Db.AutoMigrate(&brainModels.Node{})
+	a.Db.AutoMigrate(&brainModels.NodeMetadata{})
 	return err
 }

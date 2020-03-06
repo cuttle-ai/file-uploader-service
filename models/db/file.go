@@ -39,9 +39,9 @@ func (f FileUpload) DeleteErrors(a *config.AppContext) error {
 
 //GetDataset returns the dataset corresponding to a file upload
 func (f FileUpload) GetDataset(a *config.AppContext) (*Dataset, error) {
-	var dset *Dataset
-	err := a.Db.Where("resource_id = ?", f.ID).Find(dset).Error
-	return dset, err
+	var dset Dataset
+	err := a.Db.Where("resource_id = ?", f.ID).Find(&dset).Error
+	return &dset, err
 }
 
 //DeleteErrorsAndUpdateStatus will delete the file upload errors and update the status as uploaded

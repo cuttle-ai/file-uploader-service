@@ -254,6 +254,7 @@ func startProcessingColumns(a *config.AppContext, f libfile.File) {
 	nodes = []bModels.Node{}
 	for _, v := range columns {
 		node, _ := columnsMap[v.UID]
+		node.DatasetID = dSet.ID
 		nodes = append(nodes, node.FromColumn(v))
 	}
 	nodes, err = dSet.UpdateColumns(a, nodes)
@@ -262,7 +263,7 @@ func startProcessingColumns(a *config.AppContext, f libfile.File) {
 		a.Log.Error("error while updating the columns in the database id", dSet.ID, err)
 		return
 	}
-	a.Log.Info("saved/updated the columns of the file of processor id", f.ID())
+	a.Log.Info("saved/updated the columns of the file of processor id", f.ID(), "found", len(nodes), "columns")
 }
 
 //ProcessColumns will process the columns in an uploaded data file.

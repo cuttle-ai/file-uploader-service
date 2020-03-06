@@ -167,6 +167,11 @@ func (c *CSV) IdentifyColumns(columns []interpreter.ColumnNode) ([]interpreter.C
 		}
 		for i, v := range record {
 			columns[i].DataType = predictColumn(v, columns[i].DataType)
+			if columns[i].DataType == interpreter.DataTypeInt || columns[i].DataType == interpreter.DataTypeFloat {
+				columns[i].AggregationFn = interpreter.AggregationFnSum
+			} else {
+				columns[i].AggregationFn = interpreter.AggregationFnCount
+			}
 		}
 	}
 	return columns, nil
