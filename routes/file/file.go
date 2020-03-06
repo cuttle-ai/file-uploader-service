@@ -235,8 +235,10 @@ func startProcessingColumns(a *config.AppContext, f libfile.File) {
 	//getting all the columns
 	a.Log.Info("getting all the columns in the file processor id", f.ID())
 	columns := []interpreter.ColumnNode{}
+	columnsMap := map[string]bModels.Node{}
 	for _, v := range nodes {
 		columns = append(columns, v.ColumnNode())
+		columnsMap[v.UID.String()] = v
 	}
 
 	//start identifying the columns
@@ -251,7 +253,8 @@ func startProcessingColumns(a *config.AppContext, f libfile.File) {
 	//save/update the columns
 	nodes = []bModels.Node{}
 	for _, v := range columns {
-		nodes = append(nodes, bModels.ColumnToNode(v))
+		node, _ := columnsMap[v.UID]
+		nodes = append(nodes, node.FromColumn(v))
 	}
 	nodes, err = dSet.UpdateColumns(a, nodes)
 	if err != nil {
