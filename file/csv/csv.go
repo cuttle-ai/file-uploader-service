@@ -142,12 +142,13 @@ func (c *CSV) IdentifyColumns(columns []interpreter.ColumnNode) ([]interpreter.C
 
 	if len(columns) == 0 {
 		columns = []interpreter.ColumnNode{}
-		for _, col := range cols {
+		for k, col := range cols {
 			columns = append(columns, interpreter.ColumnNode{
 				UID:  uuid.New().String(),
-				Name: col,
+				Name: strconv.Itoa(k),
 				//Will keep the default data type as string
 				DataType: interpreter.DataTypeString,
+				Word:     []rune(col),
 			})
 		}
 	}
