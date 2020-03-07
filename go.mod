@@ -8,6 +8,8 @@ replace github.com/cuttle-ai/brain => ../brain/
 
 replace github.com/cuttle-ai/octopus => ../octopus/
 
+replace github.com/cuttle-ai/configs => ../configs/
+
 require (
 	github.com/Clever/csvlint v0.2.0
 	github.com/cuttle-ai/auth-service v0.0.0-00010101000000-000000000000
@@ -17,8 +19,4 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/consul/api v1.3.0
 	github.com/jinzhu/gorm v1.9.12
-	github.com/revel/config v0.21.0 // indirect
-	github.com/revel/log15 v2.11.20+incompatible // indirect
-	github.com/revel/pathtree v0.0.0-20140121041023-41257a1839e9 // indirect
-	github.com/revel/revel v0.21.0
 )
