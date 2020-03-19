@@ -10,6 +10,8 @@ replace github.com/cuttle-ai/octopus => ../octopus/
 
 replace github.com/cuttle-ai/configs => ../configs/
 
+replace github.com/cuttle-ai/db-toolkit => ../db-toolkit/
+
 require (
 	github.com/Clever/csvlint v0.2.0
 	github.com/cuttle-ai/auth-service v0.0.0-00010101000000-000000000000

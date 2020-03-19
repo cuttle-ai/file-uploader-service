@@ -46,7 +46,7 @@ func (r Route) Register(s *http.ServeMux) {
 	 * If the route version is default version then will register it without version string to http handler
 	 * Will register the router with the http handler
 	 */
-	if r.Version == version.Default {
+	if r.Version == version.Default.API {
 		s.Handle(r.Pattern, http.TimeoutHandler(r, config.ResponseTimeout, "timeout"))
 	}
 	s.Handle("/"+r.Version+r.Pattern, http.TimeoutHandler(r, config.ResponseTimeout, "timeout"))
@@ -58,8 +58,7 @@ func (r Route) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	 * Will get the context
 	 * Will parse the form if enabled
 	 * We will get the auth-access token from the header
-	 * Will sessiomn information about the logged in user
-	 * Will parse the form
+	 * Will get session information about the logged in user
 	 * We will fetch the app context for the request
 	 * If app contexts have exhausted, we will reject the request
 	 * Then we will set the app context in request
