@@ -67,6 +67,13 @@ func (d Dataset) GetColumns(a *config.AppContext) ([]models.Node, error) {
 	return result, err
 }
 
+//GetTable get the tables corresponding to a dataset
+func (d Dataset) GetTable(a *config.AppContext) (models.Node, error) {
+	result := models.Node{}
+	err := a.Db.Set("gorm:auto_preload", true).Where("dataset_id = ? and type = ?", d.ID, interpreter.Table).Find(&result).Error
+	return result, err
+}
+
 //UpdateColumns updates the columns in the database. It will create the columns if not existing
 func (d *Dataset) UpdateColumns(a *config.AppContext, cols []models.Node) ([]models.Node, error) {
 	/*
@@ -110,6 +117,12 @@ func (d *Dataset) UpdateColumns(a *config.AppContext, cols []models.Node) ([]mod
 		}
 	}
 	return cols, tx.Commit().Error
+}
+
+//CreateTable creates the table for the given dataset
+func (d *Dataset) CreateTable(a *config.AppContext, table models.Node) (models.Node, error) {
+	err := a.Db.Create(&table).Error
+	return table, err
 }
 
 //UpdateSanityCheck will check whether the dataset has correct values or not

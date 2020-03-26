@@ -16,6 +16,7 @@ import (
 
 	"github.com/Clever/csvlint"
 	brainModels "github.com/cuttle-ai/brain/models"
+	"github.com/cuttle-ai/db-toolkit/datastores/services"
 	"github.com/cuttle-ai/file-uploader-service/config"
 	"github.com/cuttle-ai/file-uploader-service/models"
 	"github.com/cuttle-ai/file-uploader-service/models/db"
@@ -246,7 +247,26 @@ func predictColumn(value string, existingType string) string {
 }
 
 //Upload will attempt to upload the file to the analytics engine and report any error occurred
-func (c *CSV) Upload() error {
+func (c *CSV) Upload(a *config.AppContext, table interpreter.TableNode, replace bool, dataStore services.Service) error {
+	/*
+	 * We will first get the underlyign datastore
+	 * Then we will upload the data
+	 */
+	//getting the underlying datastore
+	dS, err := dataStore.Datastore()
+	if err != nil {
+		//error while getting the datastore connection
+		a.Log.Error("error while getting the datastore connection")
+		return err
+	}
+
+	//we start uploading the data
+	err = dS.DumpCSV(c.Filename, table.Name, table.Children, !replace, a.Log)
+	if err != nil {
+		//error while dumping the csv to the datastore
+		a.Log.Error("error while dumping the csv to the datastore")
+		return err
+	}
 	return nil
 }
 
