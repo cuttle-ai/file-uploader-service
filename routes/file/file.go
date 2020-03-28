@@ -419,6 +419,11 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, replaceFlag
 		a.Log.Error("error while getting the list of datastores for uploading the datastore", dSet.ID, err)
 		return
 	}
+	if len(dS) == 0 {
+		//couldn't find any data stores
+		a.Log.Error("couldn't find any data stores for uploading the datastore", dSet.ID, err)
+		return
+	}
 
 	//choosing the dataset with least no. of datasets
 	ser := services.Service{Datasets: 100000}
