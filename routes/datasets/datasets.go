@@ -114,6 +114,7 @@ func UpdateDataset(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 		response.WriteError(w, response.Error{Err: "Invalid Params " + err.Error()}, http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
 
 	//doing a sanity check
 	err = d.UpdateSanityCheck(appCtx)
