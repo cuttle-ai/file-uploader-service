@@ -261,7 +261,7 @@ func (c *CSV) Upload(a *config.AppContext, table interpreter.TableNode, replace 
 	}
 
 	//we start uploading the data
-	err = dS.DumpCSV(c.Filename, table.Name, table.Children, !replace, a.Log)
+	err = dS.DumpCSV(c.Filename, table.Name, table.Children, !replace, true, a.Log)
 	if err != nil {
 		//error while dumping the csv to the datastore
 		a.Log.Error("error while dumping the csv to the datastore")
