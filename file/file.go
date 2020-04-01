@@ -41,7 +41,7 @@ type File interface {
 	//Else it will validate the given columns with the ones in the data file and try to refine the data type in the columns
 	IdentifyColumns(columns []interpreter.ColumnNode) ([]interpreter.ColumnNode, error)
 	//Upload will upload the data inside the file to the platform analytics engine replacing the existing data if the 3rd argument is true.
-	Upload(*config.AppContext, interpreter.TableNode, bool, services.Service) error
+	Upload(a *config.AppContext, table interpreter.TableNode, appendData bool, createTable bool, dataStore services.Service) error
 	//UpdateStatus updates the status of the file in db
 	UpdateStatus(*config.AppContext) error
 	//ID returns the unique identified for the underlying resource in database

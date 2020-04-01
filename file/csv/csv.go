@@ -247,7 +247,7 @@ func predictColumn(value string, existingType string) string {
 }
 
 //Upload will attempt to upload the file to the analytics engine and report any error occurred
-func (c *CSV) Upload(a *config.AppContext, table interpreter.TableNode, replace bool, dataStore services.Service) error {
+func (c *CSV) Upload(a *config.AppContext, table interpreter.TableNode, appendData bool, createTable bool, dataStore services.Service) error {
 	/*
 	 * We will first get the underlyign datastore
 	 * Then we will upload the data
@@ -261,7 +261,7 @@ func (c *CSV) Upload(a *config.AppContext, table interpreter.TableNode, replace 
 	}
 
 	//we start uploading the data
-	err = dS.DumpCSV(c.Filename, table.Name, table.Children, !replace, true, a.Log)
+	err = dS.DumpCSV(c.Filename, table.Name, table.Children, appendData, createTable, a.Log)
 	if err != nil {
 		//error while dumping the csv to the datastore
 		a.Log.Error("error while dumping the csv to the datastore")

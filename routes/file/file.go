@@ -321,7 +321,7 @@ func ProcessColumns(ctx context.Context, w http.ResponseWriter, r *http.Request)
 	response.Write(w, response.Message{Message: "Successfully started identifying the columns"})
 }
 
-func startUploadingToDatastore(a *config.AppContext, f libfile.File, replaceFlag bool) {
+func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag bool) {
 	/*
 	 * First we will get the dataset corresponding to the file
 	 * Then we will try to get the table associated with the dataset
@@ -332,9 +332,10 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, replaceFlag
 	 * Then we will get the list of datastore services
 	 * Will choose the service with least number of datasets in it
 	 * Then we start uploading the table to the datastore
+	 * If the table is not created, then we will then update the table created flag as true
 	 */
 	//getting the dataset corresponding to the the file
-	a.Log.Info("started identifying the columns in the file processor id", f.ID())
+	a.Log.Info("started uploading the table to the datastore with file processor id", f.ID())
 	fDb := db.FileUpload{}
 	fDb.ID = f.ID()
 	dSet, err := fDb.GetDataset(a)
@@ -434,10 +435,25 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, replaceFlag
 	}
 
 	//we start uploading the table to the datastore
-	err = f.Upload(a, tableNode, replaceFlag, ser)
+	a.Log.Info("going to upload the dataset to datastore for dataset id", dSet.ID)
+	err = f.Upload(a, tableNode, appendFlag, dSet.TableCreated, ser)
 	if err != nil {
 		//error while uploading the table to datastore
 		a.Log.Error("error while uploading the table to datastore", err)
+		return
+	}
+
+	a.Log.Info("successfull uploaded the dataset to a datastore for the dataset id", dSet.ID)
+	if dSet.TableCreated {
+		return
+	}
+
+	dSet.TableCreated = true
+	a.Log.Info("updating the table created flag to the dataset to a datastore for the dataset id", dSet.ID)
+	err = dSet.Update(a)
+	if err != nil {
+		//error while updating the table created flag as true for the datastore
+		a.Log.Error("error while updating the table created flag as true for the datastore", err)
 		return
 	}
 }
@@ -467,10 +483,10 @@ func UploadToDatastore(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 
 	//parse the request param replace param
-	replaceData := r.URL.Query().Get("replace")
-	replaceFlag := false
-	if replaceData == "true" {
-		replaceFlag = true
+	appendData := r.URL.Query().Get("appendData")
+	appendFlag := false
+	if appendData == "true" {
+		appendFlag = true
 	}
 
 	//we will get the db record for the file
@@ -493,7 +509,7 @@ func UploadToDatastore(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 
 	//now we start uploading it
-	go startUploadingToDatastore(appCtx, lF, replaceFlag)
+	go startUploadingToDatastore(appCtx, lF, appendFlag)
 
 	appCtx.Log.Info("Successfully started uploading the file to the datastore in", id)
 	response.Write(w, response.Message{Message: "Successfully started uploading the file to the datastore"})
