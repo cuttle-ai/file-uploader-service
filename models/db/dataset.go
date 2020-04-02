@@ -6,8 +6,10 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 
+	authConfig "github.com/cuttle-ai/auth-service/config"
 	"github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/config"
 	"github.com/cuttle-ai/octopus/interpreter"
@@ -38,7 +40,7 @@ func (d *Dataset) Get(a *config.AppContext, maskSensitiveInfo bool) error {
 	 * Then based on the source, we will get the resource
 	 */
 	//getting the dataset
-	err := a.Db.Where("user_id = ? and id = ?", a.Session.User.ID, d.ID).Find(d).Error
+	err := a.Db.Where("user_id = ? and id = ?", d.UserID, d.ID).Find(d).Error
 	if err != nil {
 		return err
 	}
@@ -139,6 +141,14 @@ func (d Dataset) UpdateSanityCheck(a *config.AppContext) error {
 	return nil
 }
 
+//DeleteSanityCheck will check whether the user has correct access to delete the dataset
+func (d Dataset) DeleteSanityCheck(a *config.AppContext) error {
+	if a.Session.User.ID != d.UserID && a.Session.User.UserType != authConfig.AdminUser && a.Session.User.UserType != authConfig.SuperAdmin {
+		return errors.New("user is not previleged to delete the dataset")
+	}
+	return nil
+}
+
 //Update updates a dataset
 func (d *Dataset) Update(a *config.AppContext) error {
 	/*
@@ -153,4 +163,69 @@ func (d *Dataset) Update(a *config.AppContext) error {
 	}).Error
 
 	return err
+}
+
+//Delete will delete a given dataset and all the cascaded information
+// - nodes
+// - node metadata
+// - uploaded file
+// - dataset
+func (d *Dataset) Delete(a *config.AppContext) error {
+	/*
+	 * We will start the transaction
+	 * We will remove the nodes
+	 * We will remove the node metadata
+	 * We will remove the uploaded file info if any
+	 * dataset info
+	 * We will commit the changes
+	 */
+	//starting the transaction
+	tx := a.Db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+	if err := tx.Error; err != nil {
+		return err
+	}
+
+	//deleting the nodes
+	err := tx.Where("dataset_id = ?", d.ID).Delete(&models.Node{}).Error
+	if err != nil {
+		//error while deleting the nodes
+		a.Log.Error("error while deleting the nodes associated with the dataset")
+		tx.Rollback()
+		return err
+	}
+
+	//deleting the node metadata
+	err = tx.Where("dataset_id = ?", d.ID).Delete(&models.NodeMetadata{}).Error
+	if err != nil {
+		//error while deleting the node metadata
+		a.Log.Error("error while deleting the node metadata associated with the dataset")
+		tx.Rollback()
+		return err
+	}
+
+	//deleting the file uploads if any
+	err = tx.Where("id = ?", d.ResourceID).Delete(&FileUpload{}).Error
+	if err != nil {
+		//error while deleting the file uploads
+		a.Log.Error("error while deleting the file uploads associated with the dataset")
+		tx.Rollback()
+		return err
+	}
+
+	//deleting the dataset
+	err = tx.Where("id = ?", d.ID).Delete(&Dataset{}).Error
+	if err != nil {
+		//error while deleting the dataset
+		a.Log.Error("error while deleting the dataset associated with the dataset")
+		tx.Rollback()
+		return err
+	}
+
+	//commiting everything
+	return tx.Commit().Error
 }

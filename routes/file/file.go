@@ -449,6 +449,7 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	}
 
 	dSet.TableCreated = true
+	dSet.DatastoreID = ser.ID
 	a.Log.Info("updating the table created flag to the dataset to a datastore for the dataset id", dSet.ID)
 	err = dSet.Update(a)
 	if err != nil {
