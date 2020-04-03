@@ -10,7 +10,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/config"
@@ -73,6 +75,8 @@ func GetDataSet(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	//getting the dataset info
 	if appCtx.Session.User.UserType != authConfig.AdminUser && appCtx.Session.User.UserType != authConfig.SuperAdmin {
+		d.UserID = appCtx.Session.User.ID
+	} else if d.UserID == 0 {
 		d.UserID = appCtx.Session.User.ID
 	}
 	err = d.Get(appCtx, true)
@@ -170,7 +174,11 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 		}
 
 		//removing the physical files
-		err := os.RemoveAll(f.Info.Location)
+		sepa := string([]rune{filepath.Separator})
+		splits := strings.Split(f.Info.Location, sepa)
+		direct := strings.Join(splits[:len(splits)-1], sepa)
+		a.Log.Info("removing the physical files from", direct)
+		err := os.RemoveAll(direct)
 		if err != nil {
 			//error while removing the dataset's physical files
 			a.Log.Error("error while removing the physical files for the dataset", d.ID, f.Info.Location, err)
@@ -179,41 +187,73 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 	}
 
 	//remove the data from datastore
+	if d.TableCreated {
+		err := deleteDatasetFromDatastore(a, d)
+		if err != nil {
+			//error while removing the dataset from the datastore
+			a.Log.Error("error while removing the dataset from the datastore", d.ID, err)
+			return
+		}
+	}
+
+	//remove the dataset and all the cascaded information from database
+	err := d.Delete(a)
+	if err != nil {
+		//error while removing the db info from the database
+		a.Log.Error("error while removing the db info from the database", d.DatastoreID, err)
+		return
+	}
+}
+
+func deleteDatasetFromDatastore(a *config.AppContext, d *db.Dataset) error {
+	/*
+	 * We will get the dataset's table
+	 * then we will get the info about the datastoring the dataset info
+	 * then we will get the datastore
+	 * then we will delete the table in the datastore
+	 */
 	//getting the dataset's table
 	a.Log.Info("getting table of the dataset of id", d.ID)
 	table, err := d.GetTable(a)
 	if err != nil {
 		//error while getting the table associated with the dataset
 		a.Log.Error("error while getting the table associated with the dataset while removing it from datastore of dataste id", d.ID, err)
-		return
+		return err
 	}
+
 	//getting the info about the service
 	dS, err := datastores.GetDatastore(a.Log, config.DiscoveryURL, config.DiscoveryToken, a.Session.ID, d.DatastoreID)
 	if err != nil {
 		//error while getting the info of datastores in the platform
 		a.Log.Error("error while getting the info of datastores for removing the datastore", d.DatastoreID, err)
-		return
+		return err
 	}
+	//no datastore found
+	if dS == nil {
+		a.Log.Info("Couldn't find any datastore where the data is stored for datastore", d.ID)
+		return nil
+	}
+
+	//getting the datastore
 	dst, err := dS.Datastore()
 	if err != nil {
 		//error while the datastore from the service
 		a.Log.Error("error while getting the datastore connection from the datastore", d.DatastoreID, err)
-		return
+		return err
 	}
+	if dst == nil {
+		a.Log.Info("Couldn't find any datastore with id", dS.ID, "for deleting the datastore", d.ID)
+		return nil
+	}
+
+	//deleting the table
 	err = dst.DeleteTable("table_" + table.UID.String())
 	if err != nil {
 		//error while deleting the table from datastore
 		a.Log.Error("error while deleting the table from datastore", d.DatastoreID, "table_"+table.UID.String(), err)
-		return
+		return err
 	}
-
-	//remove the dataset and all the cascaded information from database
-	err = d.Delete(a)
-	if err != nil {
-		//error while removing the db info from the database
-		a.Log.Error("error while removing the db info from the database", d.DatastoreID, err)
-		return
-	}
+	return nil
 }
 
 //DeleteDataset will delete a given dataset for a given user and all the information related to that
@@ -245,7 +285,7 @@ func DeleteDataset(ctx context.Context, w http.ResponseWriter, r *http.Request) 
 	if appCtx.Session.User.UserType != authConfig.AdminUser && appCtx.Session.User.UserType != authConfig.SuperAdmin {
 		d.UserID = appCtx.Session.User.ID
 	}
-	err = d.Get(appCtx, true)
+	err = d.Get(appCtx, false)
 	if err != nil {
 		//error while getting the info
 		appCtx.Log.Error("error while getting the info for datatset with id", d.ID, err.Error())

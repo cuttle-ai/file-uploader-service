@@ -12,6 +12,7 @@ import (
 	authConfig "github.com/cuttle-ai/auth-service/config"
 	"github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/config"
+	fModels "github.com/cuttle-ai/file-uploader-service/models"
 	"github.com/cuttle-ai/octopus/interpreter"
 	"github.com/google/uuid"
 )
@@ -175,6 +176,7 @@ func (d *Dataset) Delete(a *config.AppContext) error {
 	 * We will start the transaction
 	 * We will remove the nodes
 	 * We will remove the node metadata
+	 * We will remove the file upload errors
 	 * We will remove the uploaded file info if any
 	 * dataset info
 	 * We will commit the changes
@@ -204,6 +206,15 @@ func (d *Dataset) Delete(a *config.AppContext) error {
 	if err != nil {
 		//error while deleting the node metadata
 		a.Log.Error("error while deleting the node metadata associated with the dataset")
+		tx.Rollback()
+		return err
+	}
+
+	//deleting the file uploads errors if any
+	err = tx.Where("file_upload_id = ?", d.ResourceID).Delete(&fModels.FileUploadError{}).Error
+	if err != nil {
+		//error while deleting the file upload errors
+		a.Log.Error("error while deleting the file upload errors associated with the dataset")
 		tx.Rollback()
 		return err
 	}
