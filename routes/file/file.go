@@ -363,6 +363,7 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 			UID: uuid.New().String(),
 		}
 		tableNode.Name = "table_" + tableNode.UID
+		table.DatasetID = dSet.ID
 		table = table.FromTable(tableNode)
 		table, err = dSet.CreateTable(a, table)
 		if err != nil {
@@ -435,8 +436,8 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	}
 
 	//we start uploading the table to the datastore
-	a.Log.Info("going to upload the dataset to datastore for dataset id", dSet.ID)
-	err = f.Upload(a, tableNode, appendFlag, dSet.TableCreated, ser)
+	a.Log.Info("going to upload the dataset to datastore for dataset id", dSet.ID, ser.Password)
+	err = f.Upload(a, tableNode, appendFlag, !dSet.TableCreated, ser)
 	if err != nil {
 		//error while uploading the table to datastore
 		a.Log.Error("error while uploading the table to datastore", err)

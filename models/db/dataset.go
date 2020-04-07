@@ -159,8 +159,10 @@ func (d *Dataset) Update(a *config.AppContext) error {
 	//updating the model
 	d.UserID = a.Session.User.ID
 	err := a.Db.Model(d).Updates(map[string]interface{}{
-		"name":        d.Name,
-		"description": d.Description,
+		"name":          d.Name,
+		"description":   d.Description,
+		"table_created": d.TableCreated,
+		"datastore_id":  d.DatastoreID,
 	}).Error
 
 	return err

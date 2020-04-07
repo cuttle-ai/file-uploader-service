@@ -230,7 +230,7 @@ func deleteDatasetFromDatastore(a *config.AppContext, d *db.Dataset) error {
 	}
 	//no datastore found
 	if dS == nil {
-		a.Log.Info("Couldn't find any datastore where the data is stored for datastore", d.ID)
+		a.Log.Info("Couldn't find any datastore where the data is stored for dataset", d.ID, "with datastore id", d.DatastoreID)
 		return nil
 	}
 
