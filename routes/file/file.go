@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 
+	authConfig "github.com/cuttle-ai/auth-service/config"
 	bModels "github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/db-toolkit/datastores/services"
 	"github.com/cuttle-ai/file-uploader-service/config"
@@ -415,7 +416,7 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	tableNode.Children = columns
 
 	//we will get the list of datastore services
-	dS, err := datastores.ListDatastores(a.Log, config.DiscoveryURL, config.DiscoveryToken, a.Session.ID)
+	dS, err := datastores.ListDatastores(a.Log, config.DiscoveryURL, config.DiscoveryToken, authConfig.MasterAppDetails.AccessToken)
 	if err != nil {
 		//error while getting the list of datastores in the platform
 		a.Log.Error("error while getting the list of datastores for uploading the datastore", dSet.ID, err)
