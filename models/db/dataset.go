@@ -34,6 +34,9 @@ func GetDatasets(a *config.AppContext) ([]models.Dataset, error) {
 //Dataset is the type alias for models.Dataset
 type Dataset models.Dataset
 
+//DatsetUserMapping has mappings of user to datasets
+type DatsetUserMapping models.DatsetUserMapping
+
 //Get returns the info about a dataset including the uploaded resource info in Uploaded dataset
 func (d *Dataset) Get(a *config.AppContext, maskSensitiveInfo bool) error {
 	/*
@@ -180,6 +183,7 @@ func (d *Dataset) Delete(a *config.AppContext) error {
 	 * We will remove the node metadata
 	 * We will remove the file upload errors
 	 * We will remove the uploaded file info if any
+	 * We will delete the dataset user mappings
 	 * dataset info
 	 * We will commit the changes
 	 */
@@ -230,6 +234,15 @@ func (d *Dataset) Delete(a *config.AppContext) error {
 		return err
 	}
 
+	//deleting the datset user mappings
+	err = tx.Where("dataset_id = ?", d.ID).Delete(&DatsetUserMapping{}).Error
+	if err != nil {
+		//error while deleting the user mappings
+		a.Log.Error("error while deleting the user mappings associated with the dataset")
+		tx.Rollback()
+		return err
+	}
+
 	//deleting the dataset
 	err = tx.Where("id = ?", d.ID).Delete(&Dataset{}).Error
 	if err != nil {
@@ -241,4 +254,19 @@ func (d *Dataset) Delete(a *config.AppContext) error {
 
 	//commiting everything
 	return tx.Commit().Error
+}
+
+//Create will create a user dataset mapping
+func (du *DatsetUserMapping) Create(a *config.AppContext) error {
+	return a.Db.Create(du).Error
+}
+
+//Update will update a user dataset mapping
+func (du *DatsetUserMapping) Update(a *config.AppContext) error {
+	return a.Db.Model(du).Updates(map[string]interface{}{"access_type": du.AccessType}).Error
+}
+
+//Delete will delete a user dataset mapping
+func (du *DatsetUserMapping) Delete(a *config.AppContext) error {
+	return a.Db.Delete(du).Error
 }

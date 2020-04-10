@@ -47,6 +47,7 @@ func (c *CSV) Store(a *config.AppContext) (*brainModels.Dataset, error) {
 	 * We will db transaction we have to save the file upload and the dataset info
 	 * Then we will create the file upload
 	 * Then we will create the dataset with resource id as the of the file
+	 * Then we will create the dataset user mappings
 	 */
 	//starting the transaction
 	tx := a.Db.Begin()
@@ -78,6 +79,15 @@ func (c *CSV) Store(a *config.AppContext) (*brainModels.Dataset, error) {
 		return nil, err
 	}
 	dataset.UploadedDataset = fileRecord
+
+	//creating the dataset user mappings
+	datasetMapping := &brainModels.DatsetUserMapping{DatasetID: dataset.ID, UserID: fileRecord.UserID, AccessType: brainModels.DatasetAccessTypeCreator}
+	if err := tx.Create(datasetMapping).Error; err != nil {
+		//error while creating the dataset user mapping
+		tx.Rollback()
+		a.Log.Error("error while creating the datset user mapping")
+		return nil, err
+	}
 
 	//returning the result
 	return dataset, tx.Commit().Error
