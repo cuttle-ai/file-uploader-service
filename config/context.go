@@ -124,5 +124,6 @@ func (a *AppContext) ConnectToDB() error {
 	a.Db.AutoMigrate(&brainModels.Dataset{})
 	a.Db.AutoMigrate(&brainModels.Node{})
 	a.Db.AutoMigrate(&brainModels.NodeMetadata{})
+	a.Db.AutoMigrate(&brainModels.DatsetUserMapping{})
 	return err
 }
