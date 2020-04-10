@@ -124,7 +124,7 @@ func init() {
 	 */
 	//port
 	if len(os.Getenv("PORT")) != 0 {
-		//Assign the default port as 9090
+		//Assign the default port as 8081
 		Port = os.Getenv("PORT")
 		ip, err := strconv.Atoi(Port)
 		if err != nil {
@@ -136,7 +136,7 @@ func init() {
 
 	//rpc port
 	if len(os.Getenv("RPC_PORT")) != 0 {
-		//Assign the default port as 9090
+		//Assign the default port as 8082
 		RPCPort = os.Getenv("RPC_PORT")
 		ip, err := strconv.Atoi(RPCPort)
 		if err != nil {
