@@ -326,12 +326,12 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	/*
 	 * First we will get the dataset corresponding to the file
 	 * Then we will try to get the table associated with the dataset
+	 * Then we will get the list of datastore services
+	 * Will choose the service with least number of datasets in it
 	 * Create the table if necessary
 	 * Then we will get all the columns associated with the file
 	 * Then we will check whether the list of columns is not zero
 	 * If table is created, we will update the PUID of the columns in database
-	 * Then we will get the list of datastore services
-	 * Will choose the service with least number of datasets in it
 	 * Then we start uploading the table to the datastore
 	 * If the table is not created, then we will then update the table created flag as true
 	 */
@@ -355,6 +355,27 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 		return
 	}
 
+	//we will get the list of datastore services
+	dS, err := datastores.ListDatastores(a.Log, config.DiscoveryURL, config.DiscoveryToken, authConfig.MasterAppDetails.AccessToken)
+	if err != nil {
+		//error while getting the list of datastores in the platform
+		a.Log.Error("error while getting the list of datastores for uploading the datastore", dSet.ID, err)
+		return
+	}
+	if len(dS) == 0 {
+		//couldn't find any data stores
+		a.Log.Error("couldn't find any data stores for uploading the datastore", dSet.ID, err)
+		return
+	}
+
+	//choosing the dataset with least no. of datasets
+	ser := services.Service{Datasets: 100000}
+	for _, v := range dS {
+		if ser.Datasets >= v.Datasets {
+			ser = v
+		}
+	}
+
 	//creating the table if necessary
 	tableCreated := false
 	if table.ID == 0 {
@@ -364,6 +385,7 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 			UID: uuid.New().String(),
 		}
 		tableNode.Name = "table_" + tableNode.UID
+		tableNode.DatastoreID = ser.ID
 		table.DatasetID = dSet.ID
 		table = table.FromTable(tableNode)
 		table, err = dSet.CreateTable(a, table)
@@ -414,27 +436,6 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	}
 	tableNode := table.TableNode()
 	tableNode.Children = columns
-
-	//we will get the list of datastore services
-	dS, err := datastores.ListDatastores(a.Log, config.DiscoveryURL, config.DiscoveryToken, authConfig.MasterAppDetails.AccessToken)
-	if err != nil {
-		//error while getting the list of datastores in the platform
-		a.Log.Error("error while getting the list of datastores for uploading the datastore", dSet.ID, err)
-		return
-	}
-	if len(dS) == 0 {
-		//couldn't find any data stores
-		a.Log.Error("couldn't find any data stores for uploading the datastore", dSet.ID, err)
-		return
-	}
-
-	//choosing the dataset with least no. of datasets
-	ser := services.Service{Datasets: 100000}
-	for _, v := range dS {
-		if ser.Datasets >= v.Datasets {
-			ser = v
-		}
-	}
 
 	//we start uploading the table to the datastore
 	a.Log.Info("going to upload the dataset to datastore for dataset id", dSet.ID, ser.Password)
