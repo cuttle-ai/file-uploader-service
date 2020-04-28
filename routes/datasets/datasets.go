@@ -222,7 +222,7 @@ func deleteDatasetFromDatastore(a *config.AppContext, d *db.Dataset) error {
 	}
 
 	//getting the info about the service
-	dS, err := datastores.GetDatastore(a.Log, config.DiscoveryURL, config.DiscoveryToken, a.Session.ID, d.DatastoreID)
+	dS, err := datastores.GetDatastore(a.Log, config.DiscoveryURL, config.DiscoveryToken, authConfig.MasterAppDetails.AccessToken, d.DatastoreID)
 	if err != nil {
 		//error while getting the info of datastores in the platform
 		a.Log.Error("error while getting the info of datastores for removing the datastore", d.DatastoreID, err)
