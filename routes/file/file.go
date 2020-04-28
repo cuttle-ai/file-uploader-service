@@ -7,6 +7,7 @@ package file
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -26,7 +27,8 @@ import (
 	"github.com/google/uuid"
 )
 
-func startValidating(a *config.AppContext, f libfile.File) {
+//StartValidating will start validating a given file
+func StartValidating(a *config.AppContext, f libfile.File) error {
 	/*
 	 * First we will get validate the file
 	 * Then we will update the status in database
@@ -48,8 +50,11 @@ func startValidating(a *config.AppContext, f libfile.File) {
 		//error while updating the validation error status
 		a.Log.Error("error while updating the validation error status in db for the file", f.ID(), nErr)
 	}
-	if err != nil || nErr != nil {
-		return
+	if err != nil {
+		return err
+	}
+	if nErr != nil {
+		return nErr
 	}
 
 	//deleteing the existing errors
@@ -60,14 +65,14 @@ func startValidating(a *config.AppContext, f libfile.File) {
 	if err != nil {
 		//error while deleting the errors in the file record
 		a.Log.Error("error while deleting the existing file upload errors for", fR.ID, err)
-		return
+		return err
 	}
 
 	//if errors are found, we need to record it
 	a.Log.Info("Have found", len(errs), "errors while validating", f.ID())
 	if len(errs) == 0 {
 		//no errors so no need to go further
-		return
+		return nil
 	}
 
 	//creating the errors
@@ -80,8 +85,10 @@ func startValidating(a *config.AppContext, f libfile.File) {
 	if err != nil {
 		//error while creating the error records
 		a.Log.Error("error while creating the file upload errors for", fR.ID, err)
+		return err
 	}
 	a.Log.Info("File validation exited sucessfully for", f.ID())
+	return fmt.Errorf("%+v", errs)
 }
 
 //Validate will start the process of validating a file
@@ -127,7 +134,7 @@ func Validate(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	//now we start processing it
-	go startValidating(appCtx, lF)
+	go StartValidating(appCtx, lF)
 
 	appCtx.Log.Info("Successfully started validating the file", id)
 	response.Write(w, response.Message{Message: "Successfully started validating"})
@@ -210,7 +217,8 @@ func UpdateUpload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	response.Write(w, response.Message{Message: "Successfully uploaded the file", Data: f})
 }
 
-func startProcessingColumns(a *config.AppContext, f libfile.File) {
+//StartProcessingColumns will start processing the columns of a given file
+func StartProcessingColumns(a *config.AppContext, f libfile.File) error {
 	/*
 	 * First we will get the dataset corresponding to the file
 	 * Then we will get all the columns associated with the file
@@ -225,7 +233,7 @@ func startProcessingColumns(a *config.AppContext, f libfile.File) {
 	if err != nil {
 		//error while getting the dataset associated with the file upload
 		a.Log.Error("error while getting the dataset of the fileupload while identifying the columns in the file of id", f.ID(), err)
-		return
+		return err
 	}
 
 	//getting the columns associated with the dataset
@@ -233,7 +241,7 @@ func startProcessingColumns(a *config.AppContext, f libfile.File) {
 	if err != nil {
 		//error while getting the nodes associated with the dataset
 		a.Log.Error("error while getting the columns of the dataset while identifying the columns in the file of dataset id", dSet.ID, err)
-		return
+		return err
 	}
 
 	//getting all the columns
@@ -250,7 +258,7 @@ func startProcessingColumns(a *config.AppContext, f libfile.File) {
 	if err != nil {
 		//error while identifying the columns in the dataset
 		a.Log.Error("error while identifying the columns in the dataset id", dSet.ID, err)
-		return
+		return err
 	}
 	a.Log.Info("identified the columns in the file of processor id", f.ID())
 
@@ -265,9 +273,10 @@ func startProcessingColumns(a *config.AppContext, f libfile.File) {
 	if err != nil {
 		//error while updating the columns in the database
 		a.Log.Error("error while updating the columns in the database id", dSet.ID, err)
-		return
+		return err
 	}
 	a.Log.Info("saved/updated the columns of the file of processor id", f.ID(), "found", len(nodes), "columns")
+	return nil
 }
 
 //ProcessColumns will process the columns in an uploaded data file.
@@ -316,13 +325,14 @@ func ProcessColumns(ctx context.Context, w http.ResponseWriter, r *http.Request)
 	}
 
 	//now we start processing it
-	go startProcessingColumns(appCtx, lF)
+	go StartProcessingColumns(appCtx, lF)
 
 	appCtx.Log.Info("Successfully started identifying the columns in the file", id)
 	response.Write(w, response.Message{Message: "Successfully started identifying the columns"})
 }
 
-func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag bool) {
+//StartUploadingToDatastore will start uploading the file to data store
+func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag bool) error {
 	/*
 	 * First we will get the dataset corresponding to the file
 	 * Then we will try to get the table associated with the dataset
@@ -343,7 +353,7 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while getting the dataset associated with the file upload
 		a.Log.Error("error while getting the dataset of the fileupload while uploading the it to datastore in the file of id", f.ID(), err)
-		return
+		return err
 	}
 
 	//getting the columns associated with the dataset
@@ -352,7 +362,7 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while getting the table associated with the dataset
 		a.Log.Error("error while getting the table associated with the dataset while uploading the it to datastore in the file of dataset id", dSet.ID, err)
-		return
+		return err
 	}
 
 	//we will get the list of datastore services
@@ -360,12 +370,12 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while getting the list of datastores in the platform
 		a.Log.Error("error while getting the list of datastores for uploading the datastore", dSet.ID, err)
-		return
+		return err
 	}
 	if len(dS) == 0 {
 		//couldn't find any data stores
 		a.Log.Error("couldn't find any data stores for uploading the datastore", dSet.ID, err)
-		return
+		return err
 	}
 
 	//choosing the dataset with least no. of datasets
@@ -392,7 +402,7 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 		if err != nil {
 			//error while saving the table to database
 			a.Log.Error("error while saving the table associated with the dataset while uploading the it to datastore in the file of dataset id", dSet.ID, err)
-			return
+			return err
 		}
 		tableCreated = true
 	}
@@ -403,13 +413,13 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while getting the nodes associated with the dataset
 		a.Log.Error("error while getting the columns of the dataset wwhile uploading the it to datastore in the file of dataset id", dSet.ID, err)
-		return
+		return err
 	}
 
 	//if the list of columns is zero
 	if len(nodes) == 0 {
 		a.Log.Warn("No columns are found. So skipping uploading")
-		return
+		return err
 	}
 
 	//if the table is created, update the puid of the columns and proceed ahead
@@ -423,7 +433,7 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 		if err != nil {
 			//error while updating the columns in the database
 			a.Log.Error("error while updating the columns in the database id", dSet.ID, err)
-			return
+			return err
 		}
 	}
 
@@ -443,12 +453,12 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while uploading the table to datastore
 		a.Log.Error("error while uploading the table to datastore", err)
-		return
+		return err
 	}
 
 	a.Log.Info("successfull uploaded the dataset to a datastore for the dataset id", dSet.ID)
 	if dSet.TableCreated {
-		return
+		return err
 	}
 
 	dSet.TableCreated = true
@@ -458,8 +468,9 @@ func startUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while updating the table created flag as true for the datastore
 		a.Log.Error("error while updating the table created flag as true for the datastore", err)
-		return
+		return err
 	}
+	return nil
 }
 
 //UploadToDatastore will upload the file to the datastore with minimum datasets stored in it
@@ -513,7 +524,7 @@ func UploadToDatastore(ctx context.Context, w http.ResponseWriter, r *http.Reque
 	}
 
 	//now we start uploading it
-	go startUploadingToDatastore(appCtx, lF, appendFlag)
+	go StartUploadingToDatastore(appCtx, lF, appendFlag)
 
 	appCtx.Log.Info("Successfully started uploading the file to the datastore in", id)
 	response.Write(w, response.Message{Message: "Successfully started uploading the file to the datastore"})

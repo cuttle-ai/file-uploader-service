@@ -20,6 +20,7 @@ import (
 	"github.com/cuttle-ai/file-uploader-service/routes"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
 	"github.com/cuttle-ai/go-sdk/services/datastores"
+	"github.com/cuttle-ai/go-sdk/services/octopus"
 	"github.com/cuttle-ai/octopus/interpreter"
 
 	authConfig "github.com/cuttle-ai/auth-service/config"
@@ -162,6 +163,7 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 	 * We will get the table name
 	 * We will get the info of datastores from data stores services
 	 * Then we will remove the dataset and all the cascaded information from database
+	 * Then we will inform the octopus service to remove the dict of user from memory
 	 */
 	//if the dataset source is of the type file do the following
 	if d.Source == models.DatasetSourceFile {
@@ -201,6 +203,14 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 	if err != nil {
 		//error while removing the db info from the database
 		a.Log.Error("error while removing the db info from the database", d.DatastoreID, err)
+		return
+	}
+
+	//remove the user dict from octopus service memory
+	err = octopus.RemoveDict(a.Log, config.DiscoveryURL, config.DiscoveryToken, a.Session.ID)
+	if err != nil {
+		//error while removing the dict from octopus
+		a.Log.Error("error while removing the dict from the octopus service for user", a.Session.User.ID, err)
 		return
 	}
 }

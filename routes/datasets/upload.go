@@ -19,8 +19,11 @@ import (
 	"github.com/cuttle-ai/file-uploader-service/config"
 	libfile "github.com/cuttle-ai/file-uploader-service/file"
 	"github.com/cuttle-ai/file-uploader-service/models"
+	"github.com/cuttle-ai/file-uploader-service/models/db"
 	"github.com/cuttle-ai/file-uploader-service/routes"
+	routesFile "github.com/cuttle-ai/file-uploader-service/routes/file"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
+	"github.com/jinzhu/gorm"
 )
 
 //Upload will upload a file to the platform and will start the process of verifying the file
@@ -110,8 +113,44 @@ func Upload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	fR.Location = ""
 	d.UploadedDataset = fR
 
+	go startPipelineProcess(appCtx, &db.FileUpload{Model: gorm.Model{ID: fR.ID}})
+
 	appCtx.Log.Info("Successfully moved the uploaded file", handler.Filename, "to", newfile, "and stored to db with id", d.ID)
 	response.Write(w, response.Message{Message: "Successfully uploaded the file", Data: d})
+}
+
+func startPipelineProcess(a *config.AppContext, fU *db.FileUpload) {
+	err := fU.Get(a)
+	if err != nil {
+		//error while getting the info
+		a.Log.Error("error while getting the info for file uploaded with id", fU.ID, err.Error())
+		return
+	}
+
+	f, err := libfile.GetFile(fU.Type, *fU)
+	if err != nil {
+		//error while getting the info
+		a.Log.Error("error while getting the underlying file processor id", fU.ID, err.Error())
+	}
+
+	err = routesFile.StartValidating(a, f)
+	if err != nil {
+		//error while validating the file
+		a.Log.Error("error while validating the uploaded file", err)
+		return
+	}
+	err = routesFile.StartProcessingColumns(a, f)
+	if err != nil {
+		//error while processing the file
+		a.Log.Error("error while processing the uploaded file", err)
+		return
+	}
+	err = routesFile.StartUploadingToDatastore(a, f, false)
+	if err != nil {
+		//error while uploading the file to data store
+		a.Log.Error("error while uploading the file to data store", err)
+		return
+	}
 }
 
 func init() {
