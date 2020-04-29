@@ -23,6 +23,7 @@ import (
 	"github.com/cuttle-ai/file-uploader-service/routes"
 	routesFile "github.com/cuttle-ai/file-uploader-service/routes/file"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
+	"github.com/cuttle-ai/go-sdk/services/octopus"
 	"github.com/jinzhu/gorm"
 )
 
@@ -120,6 +121,14 @@ func Upload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 }
 
 func startPipelineProcess(a *config.AppContext, fU *db.FileUpload) {
+	/*
+	 * We will get the file upload details
+	 * We will get the file
+	 * Then we will validate
+	 * Then we will start processing the columns
+	 * Then we will start uploading to data store
+	 * Then we will update the dict
+	 */
 	err := fU.Get(a)
 	if err != nil {
 		//error while getting the info
@@ -149,6 +158,14 @@ func startPipelineProcess(a *config.AppContext, fU *db.FileUpload) {
 	if err != nil {
 		//error while uploading the file to data store
 		a.Log.Error("error while uploading the file to data store", err)
+		return
+	}
+
+	//update the user dict from octopus service memory
+	err = octopus.UpdateDict(a.Log, config.DiscoveryURL, config.DiscoveryToken, a.Session.ID)
+	if err != nil {
+		//error while updating the dict from octopus
+		a.Log.Error("error while updating the dict from the octopus service for user", a.Session.User.ID, err)
 		return
 	}
 }
