@@ -23,7 +23,6 @@ import (
 	"github.com/cuttle-ai/file-uploader-service/routes"
 	routesFile "github.com/cuttle-ai/file-uploader-service/routes/file"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
-	"github.com/cuttle-ai/go-sdk/services/octopus"
 	"github.com/jinzhu/gorm"
 )
 
@@ -114,60 +113,10 @@ func Upload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	fR.Location = ""
 	d.UploadedDataset = fR
 
-	go startPipelineProcess(appCtx, &db.FileUpload{Model: gorm.Model{ID: fR.ID}})
+	go routesFile.StartPipelineProcess(appCtx, &db.FileUpload{Model: gorm.Model{ID: fR.ID}}, false)
 
 	appCtx.Log.Info("Successfully moved the uploaded file", handler.Filename, "to", newfile, "and stored to db with id", d.ID)
 	response.Write(w, response.Message{Message: "Successfully uploaded the file", Data: d})
-}
-
-func startPipelineProcess(a *config.AppContext, fU *db.FileUpload) {
-	/*
-	 * We will get the file upload details
-	 * We will get the file
-	 * Then we will validate
-	 * Then we will start processing the columns
-	 * Then we will start uploading to data store
-	 * Then we will update the dict
-	 */
-	err := fU.Get(a)
-	if err != nil {
-		//error while getting the info
-		a.Log.Error("error while getting the info for file uploaded with id", fU.ID, err.Error())
-		return
-	}
-
-	f, err := libfile.GetFile(fU.Type, *fU)
-	if err != nil {
-		//error while getting the info
-		a.Log.Error("error while getting the underlying file processor id", fU.ID, err.Error())
-	}
-
-	err = routesFile.StartValidating(a, f)
-	if err != nil {
-		//error while validating the file
-		a.Log.Error("error while validating the uploaded file", err)
-		return
-	}
-	err = routesFile.StartProcessingColumns(a, f)
-	if err != nil {
-		//error while processing the file
-		a.Log.Error("error while processing the uploaded file", err)
-		return
-	}
-	err = routesFile.StartUploadingToDatastore(a, f, false)
-	if err != nil {
-		//error while uploading the file to data store
-		a.Log.Error("error while uploading the file to data store", err)
-		return
-	}
-
-	//update the user dict from octopus service memory
-	err = octopus.UpdateDict(a.Log, config.DiscoveryURL, config.DiscoveryToken, a.Session.ID)
-	if err != nil {
-		//error while updating the dict from octopus
-		a.Log.Error("error while updating the dict from the octopus service for user", a.Session.User.ID, err)
-		return
-	}
 }
 
 func init() {

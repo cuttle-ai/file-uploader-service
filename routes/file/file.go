@@ -23,6 +23,7 @@ import (
 	"github.com/cuttle-ai/file-uploader-service/routes"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
 	"github.com/cuttle-ai/go-sdk/services/datastores"
+	"github.com/cuttle-ai/go-sdk/services/octopus"
 	"github.com/cuttle-ai/octopus/interpreter"
 	"github.com/google/uuid"
 )
@@ -145,10 +146,12 @@ func UpdateUpload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	/*
 	 * We will get the app context
 	 * We will try to parse the id of the file
+	 * We will try to get the append flag
 	 * We will get the file model from the database
 	 * Then we will get the file payload
 	 * Then we will save the file in the same location that of the existing file, thus by replacing the original file
 	 * Then delete all the existing errors and update the existing file validation errors
+	 * Then we will start start the uploading pipeline
 	 */
 	//getting the app context
 	appCtx := ctx.Value(routes.AppContextKey).(*config.AppContext)
@@ -162,6 +165,13 @@ func UpdateUpload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		appCtx.Log.Error("error while parsing the uploaded file id", err.Error(), idStr)
 		response.WriteError(w, response.Error{Err: "Invalid Params " + idStr + " as id of the uploaded file"}, http.StatusBadRequest)
 		return
+	}
+
+	//getting the append flag
+	appendFlagStr := r.URL.Query().Get("append")
+	appendFlag := false
+	if appendFlagStr == "true" {
+		appendFlag = true
 	}
 
 	//we will get the db record for the file
@@ -211,6 +221,9 @@ func UpdateUpload(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 		response.WriteError(w, response.Error{Err: "Error while updating the upload status"}, http.StatusInternalServerError)
 		return
 	}
+
+	//starts the datastore uploading pipeline
+	go StartPipelineProcess(appCtx, f, appendFlag)
 
 	appCtx.Log.Info("Sucessfully updated the file for", f.ID)
 	f.Location = ""
@@ -448,7 +461,7 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	tableNode.Children = columns
 
 	//we start uploading the table to the datastore
-	a.Log.Info("going to upload the dataset to datastore for dataset id", dSet.ID, ser.Password)
+	a.Log.Info("going to upload the dataset to datastore for dataset id", dSet.ID, ser.Password, "with append as", appendFlag)
 	err = f.Upload(a, tableNode, appendFlag, !dSet.TableCreated, ser)
 	if err != nil {
 		//error while uploading the table to datastore
@@ -528,6 +541,66 @@ func UploadToDatastore(ctx context.Context, w http.ResponseWriter, r *http.Reque
 
 	appCtx.Log.Info("Successfully started uploading the file to the datastore in", id)
 	response.Write(w, response.Message{Message: "Successfully started uploading the file to the datastore"})
+}
+
+//StartPipelineProcess will start the pipeline of uploading file to data store pipeline
+func StartPipelineProcess(a *config.AppContext, fU *db.FileUpload, appendFlag bool) {
+	/*
+	 * We will get the file upload details
+	 * We will get the file
+	 * Then we will validate
+	 * Then we will start processing the columns
+	 * Then we will start uploading to data store
+	 * Then we will update the dict
+	 */
+	//getting the file details
+	err := fU.Get(a)
+	if err != nil {
+		//error while getting the info
+		a.Log.Error("error while getting the info for file uploaded with id", fU.ID, err.Error())
+		return
+	}
+
+	//getting the file
+	f, err := libfile.GetFile(fU.Type, *fU)
+	if err != nil {
+		//error while getting the info
+		a.Log.Error("error while getting the underlying file processor id", fU.ID, err.Error())
+	}
+
+	//start validating it
+	err = StartValidating(a, f)
+	if err != nil {
+		//error while validating the file
+		a.Log.Error("error while validating the uploaded file", err)
+		return
+	}
+
+	//if append flag is not there, it means that we have identify the columns
+	if !appendFlag {
+		err = StartProcessingColumns(a, f)
+		if err != nil {
+			//error while processing the file
+			a.Log.Error("error while processing the uploaded file", err)
+			return
+		}
+	}
+
+	//start uploading the data to the data store
+	err = StartUploadingToDatastore(a, f, appendFlag)
+	if err != nil {
+		//error while uploading the file to data store
+		a.Log.Error("error while uploading the file to data store", err)
+		return
+	}
+
+	//update the user dict from octopus service memory
+	err = octopus.UpdateDict(a.Log, config.DiscoveryURL, config.DiscoveryToken, a.Session.ID)
+	if err != nil {
+		//error while updating the dict from octopus
+		a.Log.Error("error while updating the dict from the octopus service for user", a.Session.User.ID, err)
+		return
+	}
 }
 
 func init() {
