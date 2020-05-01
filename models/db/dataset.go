@@ -13,8 +13,6 @@ import (
 	"github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/config"
 	fModels "github.com/cuttle-ai/file-uploader-service/models"
-	"github.com/cuttle-ai/octopus/interpreter"
-	"github.com/google/uuid"
 )
 
 const (
@@ -44,10 +42,12 @@ func (d *Dataset) Get(a *config.AppContext, maskSensitiveInfo bool) error {
 	 * Then based on the source, we will get the resource
 	 */
 	//getting the dataset
-	err := a.Db.Where("user_id = ? and id = ?", d.UserID, d.ID).Find(d).Error
+	ds := models.Dataset(*d)
+	err := (&ds).Get(a.Db)
 	if err != nil {
 		return err
 	}
+	*d = Dataset(ds)
 
 	//based on the source getting the resource
 	if d.Source == models.DatasetSourceFile {
@@ -68,64 +68,22 @@ func (d *Dataset) Get(a *config.AppContext, maskSensitiveInfo bool) error {
 
 //GetColumns get the columns corresponding to a dataset
 func (d Dataset) GetColumns(a *config.AppContext) ([]models.Node, error) {
-	result := []models.Node{}
-	err := a.Db.Set("gorm:auto_preload", true).Where("dataset_id = ? and type = ?", d.ID, interpreter.Column).Find(&result).Error
-	return result, err
+	ds := models.Dataset(d)
+	return ds.GetColumns(a.Db)
 }
 
 //GetTable get the tables corresponding to a dataset
 func (d Dataset) GetTable(a *config.AppContext) (models.Node, error) {
-	result := []models.Node{}
-	err := a.Db.Set("gorm:auto_preload", true).Where("dataset_id = ? and type = ?", d.ID, interpreter.Table).Find(&result).Error
-	if len(result) > 0 {
-		return result[0], nil
-	}
-	return models.Node{}, err
+	ds := models.Dataset(d)
+	return ds.GetTable(a.Db)
 }
 
 //UpdateColumns updates the columns in the database. It will create the columns if not existing
 func (d *Dataset) UpdateColumns(a *config.AppContext, cols []models.Node) ([]models.Node, error) {
-	/*
-	 * We will use the db transactions to start update
-	 * If id exists we will update
-	 * else we will create the model
-	 */
-	//starting the transaction
-	tx := a.Db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-	if err := tx.Error; err != nil {
-		return nil, err
-	}
-
-	//will iterate through the cols for create/update
-	for i := 0; i < len(cols); i++ {
-		cols[i].DatasetID = d.ID
-		//if id doesn't exists we will create the node
-		if cols[i].ID == 0 {
-			cols[i].UID = uuid.New()
-			err := tx.Create(&cols[i]).Error
-			if err != nil {
-				a.Log.Error("error while creating the column node for", cols[i].DatasetID, "at index", i)
-				tx.Rollback()
-				return nil, err
-			}
-			continue
-		}
-		//else we will update the node
-		for j := 0; j < len(cols[i].NodeMetadatas); j++ {
-			err := tx.Save(&(cols[i].NodeMetadatas[j])).Error
-			if err != nil {
-				a.Log.Error("error while updating metadata of the column node for", cols[i].ID, cols[i].NodeMetadatas[j].Prop, cols[i].NodeMetadatas[j].ID)
-				tx.Rollback()
-				return nil, err
-			}
-		}
-	}
-	return cols, tx.Commit().Error
+	ds := models.Dataset(*d)
+	res, err := (&ds).UpdateColumns(a.Log, a.Db, cols)
+	*d = Dataset(ds)
+	return res, err
 }
 
 //CreateTable creates the table for the given dataset

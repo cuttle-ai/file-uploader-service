@@ -15,6 +15,7 @@ import (
 
 	authConfig "github.com/cuttle-ai/auth-service/config"
 	bModels "github.com/cuttle-ai/brain/models"
+	dDataset "github.com/cuttle-ai/db-toolkit/dataset"
 	"github.com/cuttle-ai/db-toolkit/datastores/services"
 	"github.com/cuttle-ai/file-uploader-service/config"
 	libfile "github.com/cuttle-ai/file-uploader-service/file"
@@ -345,7 +346,7 @@ func ProcessColumns(ctx context.Context, w http.ResponseWriter, r *http.Request)
 }
 
 //StartUploadingToDatastore will start uploading the file to data store
-func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag bool) error {
+func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag bool) (*db.Dataset, error) {
 	/*
 	 * First we will get the dataset corresponding to the file
 	 * Then we will try to get the table associated with the dataset
@@ -366,7 +367,7 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while getting the dataset associated with the file upload
 		a.Log.Error("error while getting the dataset of the fileupload while uploading the it to datastore in the file of id", f.ID(), err)
-		return err
+		return nil, err
 	}
 
 	//getting the columns associated with the dataset
@@ -375,7 +376,7 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while getting the table associated with the dataset
 		a.Log.Error("error while getting the table associated with the dataset while uploading the it to datastore in the file of dataset id", dSet.ID, err)
-		return err
+		return dSet, err
 	}
 
 	//we will get the list of datastore services
@@ -383,12 +384,12 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while getting the list of datastores in the platform
 		a.Log.Error("error while getting the list of datastores for uploading the datastore", dSet.ID, err)
-		return err
+		return dSet, err
 	}
 	if len(dS) == 0 {
 		//couldn't find any data stores
 		a.Log.Error("couldn't find any data stores for uploading the datastore", dSet.ID, err)
-		return err
+		return dSet, err
 	}
 
 	//choosing the dataset with least no. of datasets
@@ -415,7 +416,7 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 		if err != nil {
 			//error while saving the table to database
 			a.Log.Error("error while saving the table associated with the dataset while uploading the it to datastore in the file of dataset id", dSet.ID, err)
-			return err
+			return dSet, err
 		}
 		tableCreated = true
 	}
@@ -426,13 +427,13 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while getting the nodes associated with the dataset
 		a.Log.Error("error while getting the columns of the dataset wwhile uploading the it to datastore in the file of dataset id", dSet.ID, err)
-		return err
+		return dSet, err
 	}
 
 	//if the list of columns is zero
 	if len(nodes) == 0 {
 		a.Log.Warn("No columns are found. So skipping uploading")
-		return err
+		return dSet, err
 	}
 
 	//if the table is created, update the puid of the columns and proceed ahead
@@ -446,7 +447,7 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 		if err != nil {
 			//error while updating the columns in the database
 			a.Log.Error("error while updating the columns in the database id", dSet.ID, err)
-			return err
+			return dSet, err
 		}
 	}
 
@@ -466,12 +467,12 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while uploading the table to datastore
 		a.Log.Error("error while uploading the table to datastore", err)
-		return err
+		return dSet, err
 	}
 
 	a.Log.Info("successfull uploaded the dataset to a datastore for the dataset id", dSet.ID)
 	if dSet.TableCreated {
-		return err
+		return dSet, err
 	}
 
 	dSet.TableCreated = true
@@ -481,9 +482,9 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	if err != nil {
 		//error while updating the table created flag as true for the datastore
 		a.Log.Error("error while updating the table created flag as true for the datastore", err)
-		return err
+		return dSet, err
 	}
-	return nil
+	return dSet, nil
 }
 
 //UploadToDatastore will upload the file to the datastore with minimum datasets stored in it
@@ -551,6 +552,8 @@ func StartPipelineProcess(a *config.AppContext, fU *db.FileUpload, appendFlag bo
 	 * Then we will validate
 	 * Then we will start processing the columns
 	 * Then we will start uploading to data store
+	 * We will get the datastore service
+	 * optimize the metadata of the dataset
 	 * Then we will update the dict
 	 */
 	//getting the file details
@@ -587,10 +590,26 @@ func StartPipelineProcess(a *config.AppContext, fU *db.FileUpload, appendFlag bo
 	}
 
 	//start uploading the data to the data store
-	err = StartUploadingToDatastore(a, f, appendFlag)
+	dSet, err := StartUploadingToDatastore(a, f, appendFlag)
 	if err != nil {
 		//error while uploading the file to data store
 		a.Log.Error("error while uploading the file to data store", err)
+		return
+	}
+
+	//getting the datastore service
+	dSe, err := datastores.GetDatastore(a.Log, config.DiscoveryURL, config.DiscoveryToken, authConfig.MasterAppDetails.AccessToken, dSet.DatastoreID)
+	if err != nil {
+		//error while getting the datastore service in which the dataset is stored
+		a.Log.Error("error while getting the datastore service in which the dataset is stored", err)
+		return
+	}
+
+	//optimize the metadata of the datastore
+	err = dDataset.OptimizeDatasetMetadata(a.Log, a.Db, dSet.ID, *dSe, a.Session.User.ID)
+	if err != nil {
+		//error while optimizing the datatset metadata
+		a.Log.Error("error while optimizing the datatset metadata", err)
 		return
 	}
 
