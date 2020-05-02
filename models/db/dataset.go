@@ -86,6 +86,14 @@ func (d *Dataset) UpdateColumns(a *config.AppContext, cols []models.Node) ([]mod
 	return res, err
 }
 
+//UpdateTable will update the given table node
+func (d *Dataset) UpdateTable(a *config.AppContext, table models.Node) (models.Node, error) {
+	ds := models.Dataset(*d)
+	res, err := (&ds).UpdateTable(a.Db, table)
+	*d = Dataset(ds)
+	return res, err
+}
+
 //CreateTable creates the table for the given dataset
 func (d *Dataset) CreateTable(a *config.AppContext, table models.Node) (models.Node, error) {
 	err := a.Db.Create(&table).Error

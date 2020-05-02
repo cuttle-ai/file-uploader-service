@@ -462,7 +462,7 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	tableNode.Children = columns
 
 	//we start uploading the table to the datastore
-	a.Log.Info("going to upload the dataset to datastore for dataset id", dSet.ID, ser.Password, "with append as", appendFlag)
+	a.Log.Info("going to upload the dataset to datastore for dataset id", dSet.ID, "with append as", appendFlag)
 	err = f.Upload(a, tableNode, appendFlag, !dSet.TableCreated, ser)
 	if err != nil {
 		//error while uploading the table to datastore

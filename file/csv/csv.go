@@ -178,7 +178,7 @@ func (c *CSV) IdentifyColumns(columns []interpreter.ColumnNode) ([]interpreter.C
 			return nil, err
 		}
 		for i, v := range record {
-			columns[i].DataType = predictColumn(v, columns[i].DataType)
+			columns[i].DataType, columns[i].DateFormat = predictColumn(v, columns[i].DataType)
 			if columns[i].DataType == interpreter.DataTypeInt || columns[i].DataType == interpreter.DataTypeFloat {
 				columns[i].AggregationFn = interpreter.AggregationFnSum
 			} else {
@@ -189,7 +189,7 @@ func (c *CSV) IdentifyColumns(columns []interpreter.ColumnNode) ([]interpreter.C
 	return columns, nil
 }
 
-func predictColumn(value string, existingType string) string {
+func predictColumn(value string, existingType string) (string, string) {
 	/*
 	 * If the value is empty we will return the existing data type itself
 	 * We chek the the value is of same data type for all data types except string type
@@ -200,16 +200,16 @@ func predictColumn(value string, existingType string) string {
 	 */
 	//returning existing type if the value is empty
 	if len(value) == 0 {
-		return existingType
+		return existingType, ""
 	}
 
 	//checking for date
 	if existingType == interpreter.DataTypeDate {
-		_, err := time.Parse("2006-Jan-02", value)
-		if err == nil {
-			return interpreter.DataTypeDate
+		ft, ok := checkForDates(value)
+		if ok {
+			return interpreter.DataTypeDate, ft
 		}
-		return interpreter.DataTypeString
+		return interpreter.DataTypeString, ""
 	}
 
 	//checking for float
@@ -217,9 +217,9 @@ func predictColumn(value string, existingType string) string {
 		tV := strings.TrimSpace(value)
 		_, err := strconv.ParseFloat(tV, 64)
 		if err == nil {
-			return interpreter.DataTypeFloat
+			return interpreter.DataTypeFloat, ""
 		}
-		return interpreter.DataTypeString
+		return interpreter.DataTypeString, ""
 	}
 
 	//checking for integer
@@ -228,32 +228,49 @@ func predictColumn(value string, existingType string) string {
 		sV := strings.TrimSuffix(tV, ".")
 		_, err := strconv.ParseInt(sV, 10, 64)
 		if err == nil {
-			return interpreter.DataTypeInt
+			return interpreter.DataTypeInt, ""
 		}
 		_, errF := strconv.ParseFloat(tV, 64)
 		if errF == nil {
-			return interpreter.DataTypeFloat
+			return interpreter.DataTypeFloat, ""
 		}
-		return interpreter.DataTypeString
+		return interpreter.DataTypeString, ""
 	}
 
 	//check for string
 	//we check every data type
-	_, err := time.Parse("2006-Jan-02", value)
-	if err == nil {
-		return interpreter.DataTypeDate
+	ft, ok := checkForDates(value)
+	if ok {
+		return interpreter.DataTypeDate, ft
 	}
 	tV := strings.TrimSpace(value)
 	_, errF := strconv.ParseFloat(tV, 64)
 	if errF == nil {
-		return interpreter.DataTypeFloat
+		return interpreter.DataTypeFloat, ""
 	}
 	sV := strings.TrimSuffix(tV, ".")
 	_, errI := strconv.ParseInt(sV, 10, 64)
 	if errI == nil {
-		return interpreter.DataTypeInt
+		return interpreter.DataTypeInt, ""
 	}
-	return interpreter.DataTypeString
+	return interpreter.DataTypeString, ""
+}
+
+var supportedDateTypes = []string{
+	"2006-Jan-02",
+	"01/02/2006",
+	"1/02/2006",
+	"1/2/2006",
+}
+
+func checkForDates(value string) (string, bool) {
+	for _, v := range supportedDateTypes {
+		_, err := time.Parse(v, value)
+		if err == nil {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 //Upload will attempt to upload the file to the analytics engine and report any error occurred
