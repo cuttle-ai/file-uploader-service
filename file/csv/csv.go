@@ -258,8 +258,6 @@ func predictColumn(value string, existingType string) (string, string) {
 
 var supportedDateTypes = []string{
 	"2006-Jan-02",
-	"01/02/2006",
-	"1/02/2006",
 	"1/2/2006",
 }
 
@@ -277,6 +275,7 @@ func checkForDates(value string) (string, bool) {
 func (c *CSV) Upload(a *config.AppContext, table interpreter.TableNode, appendData bool, createTable bool, dataStore services.Service) error {
 	/*
 	 * We will first get the underlyign datastore
+	 * Then we will read the file and order the columns in that file
 	 * Then we will upload the data
 	 */
 	//getting the underlying datastore
@@ -287,8 +286,37 @@ func (c *CSV) Upload(a *config.AppContext, table interpreter.TableNode, appendDa
 		return err
 	}
 
+	//reading the file and figuring out the order
+	//opening the file
+	f, err := os.Open(c.Filename)
+	if err != nil {
+		//error while opening the file
+		return err
+	}
+
+	//reading the column names in the file
+	r := csv.NewReader(f)
+	cols, err := r.Read()
+	//even if the error was EOF or aything else, we will report it as error since
+	//we couldn't read the cols
+	if err != nil && err != io.EOF {
+		return err
+	}
+	if err != nil && err == io.EOF {
+		return errors.New("EOF reached before able to read the columns in the file")
+	}
+	//storing the columns in the columns result
+	columns := map[string]int{}
+	for k, col := range cols {
+		columns[col] = k
+	}
+	sortedCols := make([]interpreter.ColumnNode, len(columns))
+	for _, v := range table.Children {
+		sortedCols[columns[string(v.Word)]] = v
+	}
+
 	//we start uploading the data
-	err = dS.DumpCSV(c.Filename, table.Name, table.Children, appendData, createTable, a.Log)
+	err = dS.DumpCSV(c.Filename, table.Name, sortedCols, appendData, createTable, a.Log)
 	if err != nil {
 		//error while dumping the csv to the datastore
 		a.Log.Error("error while dumping the csv to the datastore")
