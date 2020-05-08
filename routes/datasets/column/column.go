@@ -14,14 +14,15 @@ import (
 	"github.com/cuttle-ai/file-uploader-service/config"
 	"github.com/cuttle-ai/file-uploader-service/routes"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
+	"github.com/cuttle-ai/go-sdk/services/octopus"
 )
 
-//UpdateColumn updates a given column in database and inform the octopus service to update the dict
-func UpdateColumn(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+//UpdateNodeMetadata updates the given node metadata in database and inform the octopus service to update the dict
+func UpdateNodeMetadata(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	/*
 	 * We will get the app context
 	 * Then we will parse the node metadata
-	 * CHeck for metadata
+	 * Check the validaity of metadata
 	 * Then we will update the node in db
 	 * Inform the octopus service for dict update
 	 * Writing the response
@@ -42,10 +43,38 @@ func UpdateColumn(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	//checking for the metadata
+	//checking validity of the metadata
 	if len(md) == 0 {
 		appCtx.Log.Error("couldn't find any node metadata to update")
 		response.WriteError(w, response.Error{Err: "Couldn't find any node metadata to update"}, http.StatusBadRequest)
+		return
+	}
+	//checking whether the user has access to the metadata given for update
+	datasets := map[uint]struct{}{}
+	datasetIds := []uint{}
+	for _, v := range md {
+		if v.DatasetID == 0 {
+			//we can't have datsets with 0 id
+			appCtx.Log.Error("couldn't find any node metadata with dataset id 0 for metadata id", v.ID)
+			response.WriteError(w, response.Error{Err: "Couldn't find any node metadata with dataset id 0"}, http.StatusBadRequest)
+			return
+		}
+		if _, ok := datasets[v.DatasetID]; !ok {
+			datasets[v.DatasetID] = struct{}{}
+			datasetIds = append(datasetIds, v.DatasetID)
+		}
+	}
+	ok, err := models.HasUserAccess(appCtx.Log, appCtx.Db, datasetIds, appCtx.Session.User.ID)
+	if !ok {
+		//user doesn't have access to the datasets to udate the metadata
+		appCtx.Log.Error("user doesn't have access to the datasets to udate the metadata", datasetIds, appCtx.Session.User.ID)
+		response.WriteError(w, response.Error{Err: "You don't access to the datasets"}, http.StatusForbidden)
+		return
+	}
+	if err != nil {
+		//error while checking the access rights
+		appCtx.Log.Error("error while checking the access rights of the user to the datasets", datasetIds, appCtx.Session.User.ID, err)
+		response.WriteError(w, response.Error{Err: "Error while validating the access rights"}, http.StatusInternalServerError)
 		return
 	}
 
@@ -59,9 +88,24 @@ func UpdateColumn(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	//informing the octopus service to update the dict
-	//TODO
+	err = octopus.UpdateDict(appCtx.Log, config.DiscoveryURL, config.DiscoveryToken, appCtx.Session.ID)
+	if err != nil {
+		//error while updating the dict from octopus
+		appCtx.Log.Error("error while updating the dict from the octopus service for user", appCtx.Session.User.ID, err)
+		return
+	}
 
 	//writing the response
 	appCtx.Log.Info("Successfully updated the node metadata for the dataset")
 	response.Write(w, response.Message{Message: "Successfully updatede the node metadata"})
+}
+
+func init() {
+	routes.AddRoutes(
+		routes.Route{
+			Version:     "v1",
+			Pattern:     "/datasets/nodemetadata/update",
+			HandlerFunc: UpdateNodeMetadata,
+		},
+	)
 }
