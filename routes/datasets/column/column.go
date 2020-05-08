@@ -59,27 +59,33 @@ func UpdateNodeMetadata(ctx context.Context, w http.ResponseWriter, r *http.Requ
 			response.WriteError(w, response.Error{Err: "Couldn't find any node metadata with dataset id 0"}, http.StatusBadRequest)
 			return
 		}
+		if v.ID == 0 {
+			//we can't have datsets with 0 id
+			appCtx.Log.Error("couldn't find any node metadata with id 0 by user", appCtx.Session.User.ID)
+			response.WriteError(w, response.Error{Err: "Couldn't find any node metadata with id 0"}, http.StatusBadRequest)
+			return
+		}
 		if _, ok := datasets[v.DatasetID]; !ok {
 			datasets[v.DatasetID] = struct{}{}
 			datasetIds = append(datasetIds, v.DatasetID)
 		}
 	}
 	ok, err := models.HasUserAccess(appCtx.Log, appCtx.Db, datasetIds, appCtx.Session.User.ID)
-	if !ok {
-		//user doesn't have access to the datasets to udate the metadata
-		appCtx.Log.Error("user doesn't have access to the datasets to udate the metadata", datasetIds, appCtx.Session.User.ID)
-		response.WriteError(w, response.Error{Err: "You don't access to the datasets"}, http.StatusForbidden)
-		return
-	}
 	if err != nil {
 		//error while checking the access rights
 		appCtx.Log.Error("error while checking the access rights of the user to the datasets", datasetIds, appCtx.Session.User.ID, err)
 		response.WriteError(w, response.Error{Err: "Error while validating the access rights"}, http.StatusInternalServerError)
 		return
 	}
+	if !ok {
+		//user doesn't have access to the datasets to udate the metadata
+		appCtx.Log.Error("user doesn't have access to the datasets to udate the metadata", datasetIds, appCtx.Session.User.ID)
+		response.WriteError(w, response.Error{Err: "You don't access to the datasets"}, http.StatusForbidden)
+		return
+	}
 
 	//updating the node metadata
-	err = models.UpdateNodeMetadata(md, appCtx.Db)
+	err = models.UpdateNodeMetadata(appCtx.Log, appCtx.Db, md)
 	if err != nil {
 		//error while updating the metadata
 		appCtx.Log.Error("error while updating the node metadata", err.Error())
