@@ -5,7 +5,7 @@ ARG FILE_UPLOADER_PUBLIC_KEY
 
 WORKDIR /app
 
-RUN mkdir /root/.ssh && echo "$FILE_UPLOADER_PUBLIC_KEY" >> /root/.ssh/id_rsa.pub && echo "$FILE_UPLOADER_PRIVATE_KEY" >> /root/.ssh/id_rsa
+RUN mkdir /root/.ssh && echo "$FILE_UPLOADER_PUBLIC_KEY" >> /root/.ssh/id_rsa.pub && echo "$FILE_UPLOADER_PRIVATE_KEY" >> /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa.pub
 
 COPY file-uploader-service/go.mod file-uploader-service/go.sum ./
 COPY auth-service/go.mod auth-service/go.sum ./
