@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cuttle-ai/brain/appctx"
 	"github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/config"
 	"github.com/cuttle-ai/file-uploader-service/models/db"
@@ -207,7 +208,7 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 	}
 
 	//remove the user dict from octopus service memory
-	err = octopus.RemoveDict(a.Log, config.DiscoveryURL, config.DiscoveryToken, a.Session.ID)
+	err = octopus.RemoveDict(a)
 	if err != nil {
 		//error while removing the dict from octopus
 		a.Log.Error("error while removing the dict from the octopus service for user", a.Session.User.ID, err)
@@ -232,7 +233,7 @@ func deleteDatasetFromDatastore(a *config.AppContext, d *db.Dataset) error {
 	}
 
 	//getting the info about the service
-	dS, err := datastores.GetDatastore(a.Log, config.DiscoveryURL, config.DiscoveryToken, authConfig.MasterAppDetails.AccessToken, d.DatastoreID)
+	dS, err := datastores.GetDatastore(appctx.WithAccessToken(a, authConfig.MasterAppDetails.AccessToken), d.DatastoreID)
 	if err != nil {
 		//error while getting the info of datastores in the platform
 		a.Log.Error("error while getting the info of datastores for removing the datastore", d.DatastoreID, err)

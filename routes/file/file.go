@@ -14,6 +14,7 @@ import (
 	"strconv"
 
 	authConfig "github.com/cuttle-ai/auth-service/config"
+	"github.com/cuttle-ai/brain/appctx"
 	bModels "github.com/cuttle-ai/brain/models"
 	dDataset "github.com/cuttle-ai/db-toolkit/dataset"
 	"github.com/cuttle-ai/db-toolkit/datastores/services"
@@ -380,7 +381,7 @@ func StartUploadingToDatastore(a *config.AppContext, f libfile.File, appendFlag 
 	}
 
 	//we will get the list of datastore services
-	dS, err := datastores.ListDatastores(a.Log, config.DiscoveryURL, config.DiscoveryToken, authConfig.MasterAppDetails.AccessToken)
+	dS, err := datastores.ListDatastores(appctx.WithAccessToken(a, authConfig.MasterAppDetails.AccessToken))
 	if err != nil {
 		//error while getting the list of datastores in the platform
 		a.Log.Error("error while getting the list of datastores for uploading the datastore", dSet.ID, err)
@@ -598,7 +599,7 @@ func StartPipelineProcess(a *config.AppContext, fU *db.FileUpload, appendFlag bo
 	}
 
 	//getting the datastore service
-	dSe, err := datastores.GetDatastore(a.Log, config.DiscoveryURL, config.DiscoveryToken, authConfig.MasterAppDetails.AccessToken, dSet.DatastoreID)
+	dSe, err := datastores.GetDatastore(appctx.WithAccessToken(a, authConfig.MasterAppDetails.AccessToken), dSet.DatastoreID)
 	if err != nil {
 		//error while getting the datastore service in which the dataset is stored
 		a.Log.Error("error while getting the datastore service in which the dataset is stored", err)
@@ -614,7 +615,7 @@ func StartPipelineProcess(a *config.AppContext, fU *db.FileUpload, appendFlag bo
 	}
 
 	//update the user dict from octopus service memory
-	err = octopus.UpdateDict(a.Log, config.DiscoveryURL, config.DiscoveryToken, a.Session.ID)
+	err = octopus.UpdateDict(a)
 	if err != nil {
 		//error while updating the dict from octopus
 		a.Log.Error("error while updating the dict from the octopus service for user", a.Session.User.ID, err)

@@ -12,6 +12,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 
 	authConfig "github.com/cuttle-ai/auth-service/config"
+	bLog "github.com/cuttle-ai/brain/log"
 	brainModels "github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/models"
 	"github.com/jinzhu/gorm"
@@ -126,4 +127,24 @@ func (a *AppContext) ConnectToDB() error {
 	a.Db.AutoMigrate(&brainModels.NodeMetadata{})
 	a.Db.AutoMigrate(&brainModels.DatsetUserMapping{})
 	return err
+}
+
+//Logger returns the logger of the app context
+func (a AppContext) Logger() bLog.Log {
+	return a.Log
+}
+
+//AccessToken of the app
+func (a AppContext) AccessToken() string {
+	return a.Session.ID
+}
+
+//DiscoveryAddress of thedisocvery service
+func (a AppContext) DiscoveryAddress() string {
+	return DiscoveryURL
+}
+
+//DiscoveryToken of the discovery service
+func (a AppContext) DiscoveryToken() string {
+	return DiscoveryToken
 }
