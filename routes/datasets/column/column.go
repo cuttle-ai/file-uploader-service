@@ -94,7 +94,7 @@ func UpdateNodeMetadata(ctx context.Context, w http.ResponseWriter, r *http.Requ
 	}
 
 	//informing the octopus service to update the dict
-	err = octopus.UpdateDict(a)
+	err = octopus.UpdateDict(appCtx)
 	if err != nil {
 		//error while updating the dict from octopus
 		appCtx.Log.Error("error while updating the dict from the octopus service for user", appCtx.Session.User.ID, err)
