@@ -22,6 +22,7 @@ import (
 	libfile "github.com/cuttle-ai/file-uploader-service/file"
 	"github.com/cuttle-ai/file-uploader-service/models"
 	"github.com/cuttle-ai/file-uploader-service/models/db"
+	"github.com/cuttle-ai/file-uploader-service/notifications"
 	"github.com/cuttle-ai/file-uploader-service/routes"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
 	"github.com/cuttle-ai/go-sdk/services/datastores"
@@ -31,7 +32,7 @@ import (
 )
 
 //StartValidating will start validating a given file
-func StartValidating(a *config.AppContext, f libfile.File) error {
+func StartValidating(a *config.AppContext, f libfile.File) (bool, error) {
 	/*
 	 * First we will get validate the file
 	 * Then we will update the status in database
@@ -45,6 +46,7 @@ func StartValidating(a *config.AppContext, f libfile.File) error {
 		//error while validating the file
 		a.Log.Error("error while validating the file for the file", f.ID(), err)
 	}
+	hasValidationError := len(errs) != 0
 
 	//update the status in database
 	a.Log.Info("Started updating the status of the file", f.ID())
@@ -54,10 +56,10 @@ func StartValidating(a *config.AppContext, f libfile.File) error {
 		a.Log.Error("error while updating the validation error status in db for the file", f.ID(), nErr)
 	}
 	if err != nil {
-		return err
+		return hasValidationError, err
 	}
 	if nErr != nil {
-		return nErr
+		return hasValidationError, nErr
 	}
 
 	//deleteing the existing errors
@@ -68,14 +70,14 @@ func StartValidating(a *config.AppContext, f libfile.File) error {
 	if err != nil {
 		//error while deleting the errors in the file record
 		a.Log.Error("error while deleting the existing file upload errors for", fR.ID, err)
-		return err
+		return hasValidationError, err
 	}
 
 	//if errors are found, we need to record it
 	a.Log.Info("Have found", len(errs), "errors while validating", f.ID())
 	if len(errs) == 0 {
 		//no errors so no need to go further
-		return nil
+		return hasValidationError, nil
 	}
 
 	//creating the errors
@@ -88,10 +90,10 @@ func StartValidating(a *config.AppContext, f libfile.File) error {
 	if err != nil {
 		//error while creating the error records
 		a.Log.Error("error while creating the file upload errors for", fR.ID, err)
-		return err
+		return hasValidationError, err
 	}
 	a.Log.Info("File validation exited sucessfully for", f.ID())
-	return fmt.Errorf("%+v", errs)
+	return hasValidationError, fmt.Errorf("%+v", errs)
 }
 
 //Validate will start the process of validating a file
@@ -562,6 +564,7 @@ func StartPipelineProcess(a *config.AppContext, fU *db.FileUpload, appendFlag bo
 	if err != nil {
 		//error while getting the info
 		a.Log.Error("error while getting the info for file uploaded with id", fU.ID, err.Error())
+		go notifications.SendErrorMessage(a, "error while processing "+fU.Name)
 		return
 	}
 
@@ -570,15 +573,23 @@ func StartPipelineProcess(a *config.AppContext, fU *db.FileUpload, appendFlag bo
 	if err != nil {
 		//error while getting the info
 		a.Log.Error("error while getting the underlying file processor id", fU.ID, err.Error())
+		go notifications.SendErrorMessage(a, "error while processing "+fU.Name)
 	}
 
 	//start validating it
-	err = StartValidating(a, f)
+	hasValidationErrors, err := StartValidating(a, f)
+	if hasValidationErrors {
+		go notifications.SendErrorMessage(a, fU.Name+" is not formatted correctly")
+	}
+	if err != nil && !hasValidationErrors {
+		go notifications.SendErrorMessage(a, "error while validating "+fU.Name)
+	}
 	if err != nil {
 		//error while validating the file
-		a.Log.Error("error while validating the uploaded file", err)
+		a.Log.Error("error while validating "+fU.Name, err)
 		return
 	}
+	go notifications.SendInfoMessage(a, "successfully validated "+fU.Name)
 
 	//if append flag is not there, it means that we have identify the columns
 	if !appendFlag {
@@ -586,23 +597,28 @@ func StartPipelineProcess(a *config.AppContext, fU *db.FileUpload, appendFlag bo
 		if err != nil {
 			//error while processing the file
 			a.Log.Error("error while processing the uploaded file", err)
+			go notifications.SendErrorMessage(a, "error while appending the data from "+fU.Name)
 			return
 		}
 	}
+	go notifications.SendInfoMessage(a, "successfully processed "+fU.Name)
 
 	//start uploading the data to the data store
 	dSet, err := StartUploadingToDatastore(a, f, appendFlag)
 	if err != nil {
 		//error while uploading the file to data store
 		a.Log.Error("error while uploading the file to data store", err)
+		go notifications.SendErrorMessage(a, "error uploading "+fU.Name+" to secure data storage")
 		return
 	}
+	go notifications.SendInfoMessage(a, "successfully uploaded "+fU.Name+" to a secure location")
 
 	//getting the datastore service
 	dSe, err := datastores.GetDatastore(appctx.WithAccessToken(a, authConfig.MasterAppDetails.AccessToken), dSet.DatastoreID)
 	if err != nil {
 		//error while getting the datastore service in which the dataset is stored
 		a.Log.Error("error while getting the datastore service in which the dataset is stored", err)
+		go notifications.SendErrorMessage(a, "couldn't optimize "+fU.Name)
 		return
 	}
 
@@ -611,16 +627,20 @@ func StartPipelineProcess(a *config.AppContext, fU *db.FileUpload, appendFlag bo
 	if err != nil {
 		//error while optimizing the datatset metadata
 		a.Log.Error("error while optimizing the datatset metadata", err)
+		go notifications.SendErrorMessage(a, "couldn't optimize your data")
 		return
 	}
+	go notifications.SendInfoMessage(a, fU.Name+" optimized your data")
 
 	//update the user dict from octopus service memory
 	err = octopus.UpdateDict(a)
 	if err != nil {
 		//error while updating the dict from octopus
 		a.Log.Error("error while updating the dict from the octopus service for user", a.Session.User.ID, err)
+		go notifications.SendErrorMessage(a, "couldn't synchronize your data across devices")
 		return
 	}
+	go notifications.SendSuccessMessage(a, fU.Name+" is ready to use")
 }
 
 func init() {
