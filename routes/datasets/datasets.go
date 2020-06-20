@@ -18,6 +18,7 @@ import (
 	"github.com/cuttle-ai/brain/models"
 	"github.com/cuttle-ai/file-uploader-service/config"
 	"github.com/cuttle-ai/file-uploader-service/models/db"
+	"github.com/cuttle-ai/file-uploader-service/notifications"
 	"github.com/cuttle-ai/file-uploader-service/routes"
 	"github.com/cuttle-ai/file-uploader-service/routes/response"
 	"github.com/cuttle-ai/go-sdk/services/datastores"
@@ -173,6 +174,7 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 		if !ok {
 			//couldn't type cast the file data source as fileDataset
 			a.Log.Error("error while inferring the dataset type to fileDataset with the datasource as file")
+			notifications.SendErrorMessage(a, "error while processing dataset")
 			return
 		}
 
@@ -185,6 +187,7 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 		if err != nil {
 			//error while removing the dataset's physical files
 			a.Log.Error("error while removing the physical files for the dataset", d.ID, f.Info.Location, err)
+			notifications.SendErrorMessage(a, "error while deleting dataset temporary")
 			return
 		}
 	}
@@ -195,6 +198,7 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 		if err != nil {
 			//error while removing the dataset from the datastore
 			a.Log.Error("error while removing the dataset from the datastore", d.ID, err)
+			notifications.SendErrorMessage(a, "error while deleting data from secure datstore")
 			return
 		}
 	}
@@ -204,6 +208,7 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 	if err != nil {
 		//error while removing the db info from the database
 		a.Log.Error("error while removing the db info from the database", d.DatastoreID, err)
+		notifications.SendErrorMessage(a, "error while deleting dataset metadata")
 		return
 	}
 
@@ -212,8 +217,11 @@ func startDeletingDataset(a *config.AppContext, d *db.Dataset) {
 	if err != nil {
 		//error while removing the dict from octopus
 		a.Log.Error("error while removing the dict from the octopus service for user", a.Session.User.ID, err)
+		notifications.SendErrorMessage(a, "error while synchronizing dataset change across devices")
 		return
 	}
+
+	notifications.SendActionNotification(a, "successfully deleted the dataset", models.ActionFetchDatasets)
 }
 
 func deleteDatasetFromDatastore(a *config.AppContext, d *db.Dataset) error {

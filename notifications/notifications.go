@@ -65,3 +65,12 @@ func SendSuccessMessage(appCtx *config.AppContext, message string) {
 		appCtx.Log.Error("error while sending error message to users' frontend client", err)
 	}
 }
+
+//SendActionNotification will send action notification
+func SendActionNotification(appCtx *config.AppContext, message string, action string) {
+	err := websockets.SendActionNotification(appCtx, models.Notification{Payload: models.ActionNotificationPayload{Message: message, Action: action}})
+	if err != nil {
+		//error while sending websocket notitication to user's client
+		appCtx.Log.Error("error while sending action notification to users' frontend client", err)
+	}
+}
