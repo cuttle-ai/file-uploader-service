@@ -49,6 +49,8 @@ var (
 	ServiceDomain = "127.0.0.1"
 	//FileDumpDirectory is the directory to dump the uploaded files
 	FileDumpDirectory = Separator + "cuttle.ai" + Separator + "uploaded-files" + Separator
+	//DoSCPFileTransfer will do file transfers over scp to the datastore. If false, it will do a simple cp assuming the datastore store is the same server
+	DoSCPFileTransfer = true
 )
 
 //SkipVault will skip the vault initialization if set true
@@ -121,6 +123,7 @@ func init() {
 	 * We will init the discovery url
 	 * We will init the discovery token
 	 * We will init the service domain
+	 * We will load the do scp file transfer flag
 	 */
 	//port
 	if len(os.Getenv("PORT")) != 0 {
@@ -202,6 +205,11 @@ func init() {
 	//service domain
 	if len(os.Getenv("SERVICE_DOMAIN")) != 0 {
 		ServiceDomain = os.Getenv("SERVICE_DOMAIN")
+	}
+
+	//do scp file transfer flag
+	if os.Getenv("DO_SCP_FILE_TRANSFER") == "false" {
+		DoSCPFileTransfer = false
 	}
 }
 
